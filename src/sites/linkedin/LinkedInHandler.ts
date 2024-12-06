@@ -7,15 +7,30 @@ export class LinkedInHandler implements JobSiteHandler {
     private isPaused = false;
     private currentJobIndex = 0;
     private jobListings: HTMLElement[] = [];
+    private currentStepIndex = 0;
+    private readonly MAX_STEPS = 10;
 
     setPause(paused: boolean): void {
         this.isPaused = paused;
         console.log(this.isPaused ? "Auto-apply paused" : "Auto-apply resumed");
+
+        // If we're unpausing, continue the application process
+        if (!paused && this.isApplying) {
+            console.log("Continuing application from current step...");
+            this.continueApplication();
+        }
     }
 
     togglePause(): void {
-        this.isPaused = !this.isPaused;
-        console.log(this.isPaused ? "Auto-apply paused" : "Auto-apply resumed");
+        this.setPause(!this.isPaused);
+    }
+
+    async resumeApplication(): Promise<boolean> {
+        if (this.isPaused) {
+            this.setPause(false);
+            return this.autoApply();
+        }
+        return false;
     }
 
     isValidJobPage(): boolean {
@@ -63,13 +78,18 @@ export class LinkedInHandler implements JobSiteHandler {
     }
 
     async autoApply(): Promise<boolean> {
-        if (this.isApplying) {
+        if (this.isApplying && !this.isPaused) {
             console.log("Already in the process of applying");
             return false;
         }
 
-        this.isApplying = true;
-        console.log("Starting auto-apply process");
+        // Only set isApplying to true if we're starting fresh (not resuming)
+        if (!this.isApplying) {
+            this.isApplying = true;
+            console.log("Starting auto-apply process");
+        } else {
+            console.log("Resuming auto-apply process");
+        }
 
         try {
             // If we're on the search page, load all job listings
@@ -104,10 +124,11 @@ export class LinkedInHandler implements JobSiteHandler {
             console.log("Looking for Easy Apply button...");
 
             // Find any button that has "job" in its class name and "easy apply" in text
-            const buttons = Array.from(document.querySelectorAll('button'));
-            const easyApplyButton = buttons.find(button => 
-                button.className.toLowerCase().includes('job') && 
-                button.textContent?.toLowerCase().includes('easy apply')
+            const buttons = Array.from(document.querySelectorAll("button"));
+            const easyApplyButton = buttons.find(
+                (button) =>
+                    button.className.toLowerCase().includes("job") &&
+                    button.textContent?.toLowerCase().includes("easy apply")
             );
 
             if (!easyApplyButton) {
@@ -136,66 +157,59 @@ export class LinkedInHandler implements JobSiteHandler {
             let stepCount = 0;
             while (!this.isPaused) {
                 stepCount++;
-                console.log(`Processing step ${stepCount}...`);
-                await this.sleep(1000); // Wait for form to load
+                if (stepCount > this.MAX_STEPS) {
+                    console.log(
+                        `Too many steps (${stepCount} > ${this.MAX_STEPS}), canceling application`
+                    );
+                    await this.cancelApplication();
+                    return false;
+                }
+
+                this.currentStepIndex = stepCount;
+                console.log(`Processing step ${stepCount}/${this.MAX_STEPS}...`);
+                await this.sleep(1000);
+
+                // First try to proceed without filling anything
+                console.log("Attempting to proceed without filling fields...");
+                const nextButton = await this.findNextButton();
+                if (!nextButton) {
+                    console.log("No next button found");
+                    this.isApplying = false;
+                    return false;
+                }
+
+                nextButton.click();
+                await this.sleep(1000);
+
+                // Check for any validation errors or required fields
+                if (this.hasErrors()) {
+                    console.log("Found validation issues, filling required fields...");
+                    await this.fillCurrentStep();
+                    
+                    // Try to proceed again
+                    const retryButton = await this.findNextButton();
+                    if (!retryButton) {
+                        console.log("No next button found after filling fields");
+                        this.isApplying = false;
+                        return false;
+                    }
+                    retryButton.click();
+                    await this.sleep(1000);
+                } else {
+                    console.log("Successfully proceeded without filling fields");
+                }
 
                 // Check if we're done
-                const modalContent = document.querySelector(
-                    ".artdeco-modal__content"
-                );
-                if (
-                    modalContent?.textContent
-                        ?.toLowerCase()
-                        .includes("application sent")
-                ) {
-                    console.log(
-                        "Success message found - application submitted successfully"
-                    );
+                if (this.isApplicationComplete()) {
+                    console.log("Application completed successfully!");
                     await this.closeModal();
                     this.isApplying = false;
+                    this.currentStepIndex = 0;
                     return true;
                 }
 
-                // Fill current step
-                console.log(`Filling out fields in step ${stepCount}...`);
-                await this.fillCurrentStep();
-
                 if (this.isPaused) {
-                    console.log("Auto-apply paused during form fill, stopping");
-                    this.isApplying = false;
-                    return false;
-                }
-
-                // Click the next/submit button
-                console.log("Looking for next/submit button...");
-                const nextButton = await this.findNextButton();
-                if (!nextButton) {
-                    console.log(`No next button found on step ${stepCount}`);
-                    this.isApplying = false;
-                    return false;
-                }
-                console.log(
-                    `Found next button on step ${stepCount}, clicking...`
-                );
-                nextButton.click();
-
-                // Add a check for potential error messages
-                await this.sleep(500);
-                const errorMessages = document.querySelectorAll(
-                    ".artdeco-inline-feedback--error"
-                );
-                if (errorMessages.length > 0) {
-                    console.log(
-                        "Found error messages:",
-                        Array.from(errorMessages).map((el) => el.textContent)
-                    );
-                }
-
-                if (this.isPaused) {
-                    console.log(
-                        "Auto-apply paused after clicking next, stopping"
-                    );
-                    this.isApplying = false;
+                    console.log(`Auto-apply paused during step ${stepCount}`);
                     return false;
                 }
             }
@@ -208,6 +222,39 @@ export class LinkedInHandler implements JobSiteHandler {
             this.isApplying = false;
             return false;
         }
+    }
+
+    private isApplicationComplete(): boolean {
+        console.log("Checking if application is complete...");
+
+        // Look for any modal, dialog or message that indicates completion
+        const possibleElements = document.querySelectorAll(
+            '[role="dialog"], [role="alertdialog"], .modal, .dialog'
+        );
+        console.log(
+            `Found ${possibleElements.length} possible dialog/modal elements`
+        );
+
+        for (const element of possibleElements) {
+            const text = element.textContent?.toLowerCase() || "";
+            console.log("Checking element text:", text);
+
+            if (text.includes("application sent")) {
+                console.log("Found 'application sent' message");
+                return true;
+            }
+            if (text.includes("successfully submitted")) {
+                console.log("Found 'successfully submitted' message");
+                return true;
+            }
+            if (text.includes("thank you for applying")) {
+                console.log("Found 'thank you for applying' message");
+                return true;
+            }
+        }
+
+        console.log("No completion message found");
+        return false;
     }
 
     private async loadJobListings(): Promise<boolean> {
@@ -456,9 +503,30 @@ export class LinkedInHandler implements JobSiteHandler {
     }
 
     private async closeModal(): Promise<void> {
-        const closeButton = document.querySelector(".artdeco-modal__dismiss");
-        if (closeButton instanceof HTMLElement) {
-            closeButton.click();
+        console.log("Attempting to close modal...");
+
+        // First try pressing Escape
+        document.dispatchEvent(
+            new KeyboardEvent("keydown", { key: "Escape", code: "Escape" })
+        );
+        console.log("Pressed Escape key");
+
+        // Wait a bit for any confirmation dialog
+        await this.sleep(1000);
+
+        // Look for discard button in any confirmation dialog
+        const discardButton = Array.from(
+            document.querySelectorAll("button")
+        ).find((button) =>
+            button.textContent?.toLowerCase().includes("discard")
+        );
+
+        if (discardButton) {
+            console.log("Found discard button, clicking it");
+            (discardButton as HTMLElement).click();
+            await this.sleep(500);
+        } else {
+            console.log("No discard button found");
         }
     }
 
@@ -547,5 +615,196 @@ export class LinkedInHandler implements JobSiteHandler {
     resetJobIndex(): void {
         this.currentJobIndex = 0;
         this.jobListings = [];
+    }
+
+    private async continueApplication(): Promise<void> {
+        try {
+            console.log("Attempting to continue application...");
+
+            // Click the next/submit button to continue
+            console.log("Looking for next/submit button to continue...");
+            const nextButton = await this.findNextButton();
+            if (!nextButton) {
+                console.log("No next button found to continue application");
+                this.isApplying = false;
+                return;
+            }
+
+            console.log(
+                "Found next button, clicking to continue application..."
+            );
+            nextButton.click();
+
+            // Continue with the application steps
+            let stepCount = this.currentStepIndex;
+            console.log(`Resuming from step ${stepCount}`);
+
+            while (!this.isPaused) {
+                stepCount++;
+                if (stepCount > this.MAX_STEPS) {
+                    console.log(
+                        `Too many steps (${stepCount} > ${this.MAX_STEPS}), canceling application`
+                    );
+                    await this.cancelApplication();
+                    return;
+                }
+
+                this.currentStepIndex = stepCount;
+                console.log(
+                    `Processing step ${stepCount}/${this.MAX_STEPS}...`
+                );
+                console.log(`Current step index: ${this.currentStepIndex}`);
+                await this.sleep(1000);
+
+                // Check if we're done
+                console.log("Checking if application is complete...");
+                if (this.isApplicationComplete()) {
+                    console.log("Application completed successfully!");
+                    await this.closeModal();
+                    console.log("Closed completion modal");
+                    this.isApplying = false;
+                    this.currentStepIndex = 0;
+                    console.log("Reset application state");
+                    return;
+                }
+
+                // Fill current step
+                console.log(
+                    `Starting to fill out fields in step ${stepCount}...`
+                );
+                await this.fillCurrentStep();
+                console.log(`Completed filling fields in step ${stepCount}`);
+
+                if (this.isPaused) {
+                    console.log(`Auto-apply paused during step ${stepCount}`);
+                    return;
+                }
+
+                // Click the next/submit button
+                console.log(
+                    `Looking for next/submit button for step ${stepCount}...`
+                );
+                const nextBtn = await this.findNextButton();
+                if (!nextBtn) {
+                    console.log(
+                        `No next button found on step ${stepCount}, ending application`
+                    );
+                    this.isApplying = false;
+                    this.currentStepIndex = 0;
+                    return;
+                }
+
+                console.log(
+                    `Found next button for step ${stepCount}, clicking...`
+                );
+                nextBtn.click();
+                console.log(`Clicked next button for step ${stepCount}`);
+
+                // Add a check for potential error messages
+                await this.sleep(500);
+                const errorMessages = document.querySelectorAll(
+                    ".artdeco-inline-feedback--error"
+                );
+                if (errorMessages.length > 0) {
+                    console.log(
+                        `Found ${errorMessages.length} error messages in step ${stepCount}:`,
+                        Array.from(errorMessages).map((el) => el.textContent)
+                    );
+                } else {
+                    console.log(`No error messages found in step ${stepCount}`);
+                }
+
+                if (this.isPaused) {
+                    console.log(`Auto-apply paused after step ${stepCount}`);
+                    return;
+                }
+            }
+        } catch (error) {
+            console.error("Error during continue application:", error);
+            console.log("Resetting application state due to error");
+            this.isApplying = false;
+            this.currentStepIndex = 0;
+        }
+    }
+
+    private async cancelApplication(): Promise<void> {
+        console.log("Canceling application process...");
+
+        // First try Escape key
+        document.dispatchEvent(
+            new KeyboardEvent("keydown", { key: "Escape", code: "Escape" })
+        );
+        console.log("Pressed Escape key");
+        await this.sleep(1000);
+
+        // Look for any cancel/discard/close buttons
+        const possibleButtons = Array.from(document.querySelectorAll("button"));
+        console.log(`Found ${possibleButtons.length} buttons to check`);
+
+        for (const button of possibleButtons) {
+            const text = button.textContent?.toLowerCase() || "";
+            if (
+                text.includes("discard") ||
+                text.includes("cancel") ||
+                text.includes("close")
+            ) {
+                console.log(`Found button with text: ${text}, clicking it`);
+                (button as HTMLElement).click();
+                await this.sleep(500);
+            }
+        }
+
+        // // Try Escape key again
+        // document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", code: "Escape" }));
+        // await this.sleep(500);
+
+        // // Look for any close buttons with aria-label
+        // const closeButtons = document.querySelectorAll('[aria-label*="close"], [aria-label*="dismiss"]');
+        // for (const button of closeButtons) {
+        //     console.log('Found close button with aria-label, clicking it');
+        //     (button as HTMLElement).click();
+        //     await this.sleep(500);
+        // }
+
+        // // Final Escape key press
+        // document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
+
+        this.isApplying = false;
+        this.currentStepIndex = 0;
+        console.log("Application canceled");
+    }
+
+    private hasErrors(): boolean {
+        // Check for inline error messages (red text under fields)
+        const inlineErrors = document.querySelectorAll(".artdeco-inline-feedback--error");
+        
+        // Check for alert/error messages (usually at top of form)
+        const alerts = document.querySelectorAll('[role="alert"], .alert, .error-message');
+        
+        // Check for required field indicators
+        const requiredFields = document.querySelectorAll('[required], [aria-required="true"]');
+        const emptyRequiredFields = Array.from(requiredFields).filter(field => {
+            if (field instanceof HTMLInputElement || field instanceof HTMLTextAreaElement || field instanceof HTMLSelectElement) {
+                return !field.value;
+            }
+            return false;
+        });
+
+        const hasErrors = inlineErrors.length > 0 || alerts.length > 0 || emptyRequiredFields.length > 0;
+        
+        if (hasErrors) {
+            console.log('Found form validation issues:');
+            if (inlineErrors.length > 0) {
+                console.log('- Inline errors:', Array.from(inlineErrors).map(el => el.textContent));
+            }
+            if (alerts.length > 0) {
+                console.log('- Alert messages:', Array.from(alerts).map(el => el.textContent));
+            }
+            if (emptyRequiredFields.length > 0) {
+                console.log('- Empty required fields:', emptyRequiredFields.length);
+            }
+        }
+
+        return hasErrors;
     }
 }
