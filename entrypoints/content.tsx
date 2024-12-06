@@ -5,8 +5,7 @@ import { MessageHandler } from "../src/services/messageHandler";
 import "./content/style.css";
 
 export default defineContentScript({
-    // matches: ['*://*.linkedin.com/jobs/*'],
-    matches: ["*://*/*"],
+    matches: ["*://*.linkedin.com/jobs/*"],
     main() {
         console.log("Job Search Assistant content script starting...");
 
