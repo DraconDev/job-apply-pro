@@ -1,0 +1,11 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+#job-search-extension-root {
+    position: fixed !important;
+    z-index: 2147483647 !important;
+    top: 0 !important;
+    right: 0 !important;
+    pointer-events: auto !important;
+}
