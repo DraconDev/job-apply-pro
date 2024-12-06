@@ -1,35 +1,48 @@
-import { useState } from 'react';
-import reactLogo from '@/assets/react.svg';
-import wxtLogo from '/wxt.svg';
-import './App.css';
+import { useCallback } from "react";
+import LinkedInAutoApply from "../../components/LinkedInAutoApply";
+import "./App.css";
 
-function App() {
-  const [count, setCount] = useState(0);
+export default function App() {
+    console.log("App rendered"); // Debug log
 
-  return (
-    <>
-      <div>
-        <a href="https://wxt.dev" target="_blank">
-          <img src={wxtLogo} className="logo" alt="WXT logo" />
-        </a>
-        <a href="https://react.dev" target="_blank">
-          <img src={reactLogo} className="logo react" alt="React logo" />
-        </a>
-      </div>
-      <h1>WXT + React</h1>
-      <div className="card">
-        <button onClick={() => setCount((count) => count + 1)}>
-          count is {count}
-        </button>
-        <p>
-          Edit <code>src/App.tsx</code> and save to test HMR
-        </p>
-      </div>
-      <p className="read-the-docs">
-        Click on the WXT and React logos to learn more
-      </p>
-    </>
-  );
+    const openPersonalInfo = useCallback(() => {
+        console.log("Button clicked"); // Debug log
+        try {
+            chrome.windows.create(
+                {
+                    url: chrome.runtime.getURL("/personal-info.html"),
+                    type: "popup",
+                    width: 600,
+                    height: 800,
+                },
+                (window) => {
+                    if (chrome.runtime.lastError) {
+                        console.error(
+                            "Error creating window:",
+                            chrome.runtime.lastError
+                        );
+                    } else {
+                        console.log("Window created:", window);
+                    }
+                }
+            );
+        } catch (error) {
+            console.error("Error in openPersonalInfo:", error);
+        }
+    }, []);
+
+    return (
+        <div className="min-w-[300px] p-4">
+            <LinkedInAutoApply />
+            <button
+                onClick={() => {
+                    console.log("Button clicked - inline"); // Debug log
+                    openPersonalInfo();
+                }}
+                className="mt-4 w-full bg-gray-100 hover:bg-gray-200 py-2 px-4 rounded"
+            >
+                Edit Personal Info
+            </button>
+        </div>
+    );
 }
-
-export default App;

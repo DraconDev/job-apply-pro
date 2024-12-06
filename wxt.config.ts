@@ -1,7 +1,12 @@
-import { defineConfig } from 'wxt';
+import { defineConfig } from "wxt";
 
-// See https://wxt.dev/api/config.html
 export default defineConfig({
-  extensionApi: 'chrome',
-  modules: ['@wxt-dev/module-react'],
+    extensionApi: "chrome",
+    manifest: {
+        permissions: ["storage", "windows"],
+        action: {
+            default_popup: "entrypoints/popup/index.html",
+        },
+    },
+    modules: ["@wxt-dev/module-react"],
 });
