@@ -28,32 +28,59 @@ export default defineContentScript({
         const linkedInHandler = new LinkedInHandler();
         const messageHandler = new MessageHandler();
         let isAutoApplyEnabled = false;
+        let autoApplyTimeoutId: number | null = null;
+
+        const clearAutoApplyTimeout = () => {
+            if (autoApplyTimeoutId !== null) {
+                clearTimeout(autoApplyTimeoutId);
+                autoApplyTimeoutId = null;
+            }
+        };
 
         // Create React root and render floating button
         const root = createRoot(container);
-        
+
         const handleAutoApplyToggle = async (enabled: boolean) => {
             console.log("Auto-apply toggled:", enabled);
-            
+
             if (enabled) {
                 if (linkedInHandler.isValidJobPage()) {
                     const url = window.location.href;
-                    if (url.includes("/jobs/search/")) {
-                        console.log("On search page, starting auto-apply for search results");
-                    } else {
-                        console.log("On individual job page, starting auto-apply");
+                    console.log(
+                        `Starting auto-apply on ${
+                            url.includes("/jobs/") ? "search" : "individual job"
+                        } page`
+                    );
+
+                    // Reset job index when starting new auto-apply session
+                    if (url.includes("/jobs/")) {
+                        linkedInHandler.resetJobIndex();
                     }
+
                     isAutoApplyEnabled = true;
-                    await handleAutoApply();
+                    linkedInHandler.setPause(false);
+                    handleAutoApply().catch((error) => {
+                        console.error("Error in auto-apply process:", error);
+                        isAutoApplyEnabled = false;
+                        linkedInHandler.setPause(true);
+                        clearAutoApplyTimeout();
+                    });
+
                     return true;
                 } else {
-                    console.log("Not on a valid LinkedIn jobs page. Please navigate to a LinkedIn job posting or search page.");
+                    console.log(
+                        "Not on a valid LinkedIn jobs page. Please navigate to a LinkedIn job posting or search page."
+                    );
                     isAutoApplyEnabled = false;
+                    linkedInHandler.setPause(true);
+                    clearAutoApplyTimeout();
                     return false;
                 }
             } else {
-                console.log("Stopping auto-apply");
+                console.log("Pausing auto-apply");
                 isAutoApplyEnabled = false;
+                linkedInHandler.setPause(true);
+                clearAutoApplyTimeout();
                 return true;
             }
         };
@@ -63,74 +90,99 @@ export default defineContentScript({
 
         // Listen for messages from the extension
         chrome.runtime.onMessage.addListener(
-            async (message, sender, sendResponse) => {
-                console.log("Content script received message:", message);
-                
+            (message, sender, sendResponse) => {
                 try {
                     switch (message.type) {
                         case "GET_JOB_DETAILS":
-                            console.log("Getting job details");
+                            if (!linkedInHandler.isValidJobPage()) {
+                                sendResponse({
+                                    success: false,
+                                    error: "Not a valid job page",
+                                });
+                                break;
+                            }
+
                             const details = linkedInHandler.getJobDetails();
                             console.log("Job details:", details);
                             sendResponse({ success: true, details });
                             break;
+
                         default:
                             console.log("Unknown message type:", message.type);
-                            sendResponse({ success: false, error: "Unknown message type" });
+                            sendResponse({
+                                success: false,
+                                error: "Unknown message type",
+                            });
                     }
                 } catch (error: unknown) {
                     console.error("Error handling message:", error);
-                    const errorMessage = error instanceof Error ? error.message : String(error);
-                    sendResponse({ success: false, error: errorMessage });
+                    let errorMessage = "An unknown error occurred";
+
+                    if (error instanceof Error) {
+                        errorMessage = error.message;
+                    } else if (typeof error === "string") {
+                        errorMessage = error;
+                    }
+
+                    sendResponse({
+                        success: false,
+                        error: errorMessage,
+                    });
                 }
-                
+
                 return true; // Keep the message channel open for async response
             }
         );
 
         async function handleAutoApply() {
-            console.log("handleAutoApply called, isAutoApplyEnabled:", isAutoApplyEnabled);
-            
+            console.log(
+                "handleAutoApply called, isAutoApplyEnabled:",
+                isAutoApplyEnabled
+            );
+
             if (!isAutoApplyEnabled) {
                 console.log("Auto-apply is disabled, returning early");
+                linkedInHandler.setPause(true);
+                clearAutoApplyTimeout();
                 return;
             }
 
             try {
                 console.log("Starting auto-apply process...");
-                console.log("Current URL:", window.location.href);
+                const success = await linkedInHandler.autoApply();
 
-                if (linkedInHandler.isValidJobPage()) {
-                    console.log("Valid job page confirmed, proceeding with auto-apply");
-                    const success = await linkedInHandler.autoApply();
-                    
-                    if (success) {
-                        console.log("Successfully applied to job");
-                    } else {
-                        console.log("Failed to apply to job, moving to next");
-                    }
-
-                    // Find and click the next button regardless of apply success
-                    const nextButton = await linkedInHandler.findNextButton();
-                    if (nextButton instanceof HTMLElement) {
-                        console.log("Found next button, clicking and waiting 3 seconds");
-                        nextButton.click();
-                        setTimeout(handleAutoApply, 3000);
-                    } else {
-                        console.log("No next button found, stopping auto-apply");
-                        isAutoApplyEnabled = false;
-                    }
+                if (success) {
+                    console.log("Successfully applied to job");
                 } else {
-                    console.log("Not a valid job page, stopping auto-apply");
-                    isAutoApplyEnabled = false;
+                    console.log("Failed to apply to job or job was skipped");
+                }
+
+                if (!isAutoApplyEnabled) {
+                    console.log(
+                        "Auto-apply was disabled during job application, stopping"
+                    );
+                    linkedInHandler.setPause(true);
+                    return;
+                }
+
+                // Schedule next job processing if we're still enabled
+                if (isAutoApplyEnabled) {
+                    clearAutoApplyTimeout();
+                    autoApplyTimeoutId = setTimeout(
+                        handleAutoApply,
+                        3000
+                    ) as unknown as number;
                 }
             } catch (error: unknown) {
                 console.error("Error in auto-apply process:", error);
-                const errorMessage = error instanceof Error ? error.message : String(error);
+                const errorMessage =
+                    error instanceof Error ? error.message : String(error);
                 if (error instanceof Error) {
                     console.error("Error stack:", error.stack);
                 }
                 isAutoApplyEnabled = false;
+                linkedInHandler.setPause(true);
+                clearAutoApplyTimeout();
             }
         }
     },

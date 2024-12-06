@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import ApplicationMenu from "./ApplicationMenu";
 
 interface FloatingButtonProps {
@@ -6,20 +6,93 @@ interface FloatingButtonProps {
 }
 
 const FloatingButton: React.FC<FloatingButtonProps> = ({ onToggle }) => {
-    const [isRunning, setIsRunning] = useState(false);
+    const [state, setState] = useState<"idle" | "running" | "paused">("idle");
     const [jobsApplied, setJobsApplied] = useState(0);
     const [isMenuOpen, setIsMenuOpen] = useState(false);
 
     const handleToggle = async () => {
-        const newState = !isRunning;
-        const success = await onToggle(newState);
-        
-        if (success) {
-            setIsRunning(newState);
-            console.log(`Auto-apply ${newState ? "started" : "stopped"}`);
-        } else {
-            console.log("Failed to toggle auto-apply");
+        try {
+            let success = false;
+            
+            switch (state) {
+                case "idle":
+                    // Start
+                    success = await onToggle(true);
+                    if (success) {
+                        setState("running");
+                        console.log("Started auto-apply, state changed to running");
+                    } else {
+                        console.log("Failed to start auto-apply");
+                    }
+                    break;
+                case "running":
+                    // Pause
+                    success = await onToggle(false);
+                    if (success) {
+                        setState("paused");
+                        console.log("Paused auto-apply, state changed to paused");
+                    }
+                    break;
+                case "paused":
+                    // Resume
+                    success = await onToggle(true);
+                    if (success) {
+                        setState("running");
+                        console.log("Resumed auto-apply, state changed to running");
+                    }
+                    break;
+            }
+        } catch (error) {
+            console.error("Error in handleToggle:", error);
+            setState("idle"); // Reset to idle on error
         }
+    };
+
+    const buttonConfig = {
+        idle: {
+            text: "Start Auto-Apply",
+            color: "bg-green-600 hover:bg-green-700",
+            icon: (
+                <>
+                    <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"
+                    />
+                    <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                    />
+                </>
+            ),
+        },
+        running: {
+            text: "Click to Pause",
+            color: "bg-yellow-600 hover:bg-yellow-700",
+            icon: (
+                <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M10 9v6m4-6v6m7-3a9 9 0 11-18 0 9 9 0 0118 0z"
+                />
+            ),
+        },
+        paused: {
+            text: "Click to Resume",
+            color: "bg-blue-600 hover:bg-blue-700",
+            icon: (
+                <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"
+                />
+            ),
+        },
     };
 
     return (
@@ -39,54 +112,18 @@ const FloatingButton: React.FC<FloatingButtonProps> = ({ onToggle }) => {
                     {/* Main Button */}
                     <div className="flex-grow">
                         <button
-                            className={`w-full px-4 py-3 rounded-md transition-colors duration-150 flex items-center justify-center gap-2 text-white ${
-                                isRunning
-                                    ? "bg-red-600 hover:bg-red-700"
-                                    : "bg-green-600 hover:bg-green-700"
-                            }`}
+                            className={`w-full px-4 py-3 rounded-md transition-colors duration-150 flex items-center justify-center gap-2 text-white ${buttonConfig[state].color}`}
                             onClick={handleToggle}
                         >
-                            {isRunning ? (
-                                <>
-                                    <svg
-                                        className="w-5 h-5"
-                                        fill="none"
-                                        stroke="currentColor"
-                                        viewBox="0 0 24 24"
-                                    >
-                                        <path
-                                            strokeLinecap="round"
-                                            strokeLinejoin="round"
-                                            strokeWidth={2}
-                                            d="M6 18L18 6M6 6l12 12"
-                                        />
-                                    </svg>
-                                    Stop Auto-Apply
-                                </>
-                            ) : (
-                                <>
-                                    <svg
-                                        className="w-5 h-5"
-                                        fill="none"
-                                        stroke="currentColor"
-                                        viewBox="0 0 24 24"
-                                    >
-                                        <path
-                                            strokeLinecap="round"
-                                            strokeLinejoin="round"
-                                            strokeWidth={2}
-                                            d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"
-                                        />
-                                        <path
-                                            strokeLinecap="round"
-                                            strokeLinejoin="round"
-                                            strokeWidth={2}
-                                            d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-                                        />
-                                    </svg>
-                                    Start Auto-Apply
-                                </>
-                            )}
+                            <svg
+                                className="w-5 h-5"
+                                fill="none"
+                                stroke="currentColor"
+                                viewBox="0 0 24 24"
+                            >
+                                {buttonConfig[state].icon}
+                            </svg>
+                            {buttonConfig[state].text}
                         </button>
                     </div>
 
@@ -110,7 +147,7 @@ const FloatingButton: React.FC<FloatingButtonProps> = ({ onToggle }) => {
                         >
                             Support
                             <svg
-                                className="w-6 h-6 scale-125 text-red-500 hover:text-red-600 transform transition-transform hover:scale-150"
+                                className="w-6 h-6 text-red-500 transition-transform transform scale-125 hover:text-red-600 hover:scale-150"
                                 fill="currentColor"
                                 viewBox="0 0 24 24"
                             >
@@ -120,7 +157,8 @@ const FloatingButton: React.FC<FloatingButtonProps> = ({ onToggle }) => {
                     </div>
                 </div>
             </div>
-            <ApplicationMenu 
+
+            <ApplicationMenu
                 isOpen={isMenuOpen}
                 onClose={() => setIsMenuOpen(false)}
             />

@@ -12,6 +12,7 @@ export interface JobSiteHandler {
   isValidJobPage(): boolean;
   getJobDetails(): JobDetails | null;
   applyToJob(): Promise<boolean>;
+  togglePause(): void;
 }
 
 export interface UserProfile {
