@@ -81,25 +81,47 @@ export class LinkedInHandler implements JobSiteHandler {
         button: HTMLElement,
         isNextButton: boolean = false
     ): Promise<boolean> {
-        console.log(
-            "This appears to be a submit button, clicking and waiting 10 seconds..."
-        );
-        button.click();
-        await this.sleep(10000);
-        console.log("Finished 10 second wait after submission");
-        this.isApplying = false;
+        console.log("Handling submit button click...");
 
-        if (isNextButton) {
-            // Press escape to close any open popovers
-            document.dispatchEvent(
-                new KeyboardEvent("keydown", {
-                    key: "Escape",
-                    code: "Escape",
-                })
-            );
-            console.log("Pressed Escape key");
-            await this.sleep(3000);
+        // First click the submit button
+        button.click();
+        await this.sleep(2000); // Initial wait after click
+
+        // Check for any error messages that might appear
+        if (this.hasErrors()) {
+            console.log("Found errors after submit click");
+            await this.handleValidationErrors();
         }
+
+        // Wait longer for submission to complete
+        await this.sleep(8000); // Increased to 10 seconds
+        console.log("Finished waiting after submission");
+
+        // Update jobs applied counter in sync storage
+        try {
+            const result = await chrome.storage.sync.get(["jobsApplied"]);
+            const currentCount = result.jobsApplied || 0;
+            await chrome.storage.sync.set({
+                jobsApplied: currentCount + 1,
+            });
+            console.log(
+                `Incremented jobs applied counter to ${currentCount + 1}`
+            );
+        } catch (error) {
+            console.error("Failed to increment jobs applied counter:", error);
+        }
+
+        // Press escape to close any popovers/modals
+        document.dispatchEvent(
+            new KeyboardEvent("keydown", {
+                key: "Escape",
+                code: "Escape",
+            })
+        );
+        console.log("Pressed Escape key after submission");
+        await this.sleep(5000);
+
+        this.isApplying = false;
         return true;
     }
 
@@ -136,46 +158,26 @@ export class LinkedInHandler implements JobSiteHandler {
         const nextButton = await this.findNextButton();
 
         if (!nextButton) {
-            console.log("No next button found, waiting for done button...");
-            const doneButton = await this.waitForElement(
-                'button[aria-label*="done" i], button[aria-label*="submit" i], button:contains("Done"), button:contains("Submit")',
-                10000
+            console.log("No next button found, checking for submit button...");
+            // Look specifically for submit buttons
+            const submitButton = await this.waitForElement(
+                'button[type="submit"], button[aria-label*="submit" i], button:contains("Submit"), button:contains("Review")',
+                5000
             );
 
-            if (doneButton) {
-                const buttonText = doneButton.textContent?.toLowerCase() || "";
-                console.log(
-                    `Found button with text: "${doneButton.textContent}"`
+            if (submitButton) {
+                console.log("Found submit button, clicking it...");
+                await this.handleSubmitButton(
+                    submitButton as HTMLElement,
+                    false
                 );
-
-                if (buttonText.includes("submit")) {
-                    return await this.handleSubmitButton(
-                        doneButton as HTMLElement
-                    );
-                } else {
-                    await this.handleRegularButton(doneButton as HTMLElement);
-                }
-            } else {
-                console.log("No done button found after waiting");
-                this.isApplying = false;
-                return false;
-            }
-        } else {
-            console.log(
-                `Found next button with text: "${nextButton.textContent}"`
-            );
-            if (nextButton.textContent?.toLowerCase().includes("submit")) {
-                return await this.handleSubmitButton(nextButton, true);
-            } else {
-                await this.handleRegularButton(nextButton);
+                return true;
             }
         }
 
         // Check for any validation errors or required fields
         if (this.hasErrors()) {
             return await this.handleValidationErrors();
-        } else {
-            console.log("Successfully proceeded without filling fields");
         }
 
         return false;
@@ -535,12 +537,14 @@ export class LinkedInHandler implements JobSiteHandler {
         );
         console.log("Found buttons with texts:", buttonTexts);
 
-        const nextButton = nextButtons.find(
-            (button) =>
-                button.textContent?.toLowerCase().includes("next") ||
-                button.textContent?.toLowerCase().includes("submit") ||
-                button.textContent?.toLowerCase().includes("review")
-        ) as HTMLElement;
+        const nextButton = nextButtons.find((button) => {
+            const text = button.textContent?.toLowerCase() || "";
+            return (
+                text.includes("next") ||
+                text.includes("review") ||
+                text.includes("continue")
+            );
+        }) as HTMLElement;
 
         if (nextButton) {
             console.log("Found next button with text:", nextButton.textContent);
@@ -703,26 +707,24 @@ export class LinkedInHandler implements JobSiteHandler {
                     `Processing step ${stepCount}/${this.MAX_STEPS}...`
                 );
                 console.log(`Current step index: ${this.currentStepIndex}`);
-                await this.sleep(1000);
+                await this.sleep(2000);
 
-                // Check if we're done
-                console.log("Checking if application is complete...");
-                if (this.isApplicationComplete()) {
-                    console.log("Application completed successfully!");
-                    await this.closeModal();
-                    console.log("Closed completion modal");
-                    this.isApplying = false;
-                    this.currentStepIndex = 0;
-                    console.log("Reset application state");
+                // Look for submit button first
+                const submitButton = await this.waitForElement(
+                    'button[type="submit"], button:contains("Submit"), button:contains("Review"), button[aria-label*="submit" i]',
+                    5000
+                );
+
+                if (submitButton) {
+                    console.log(
+                        "Found submit button, handling final submission..."
+                    );
+                    await this.handleSubmitButton(
+                        submitButton as HTMLElement,
+                        false
+                    );
                     return;
                 }
-
-                // Fill current step
-                console.log(
-                    `Starting to fill out fields in step ${stepCount}...`
-                );
-                await this.fillCurrentStep();
-                console.log(`Completed filling fields in step ${stepCount}`);
 
                 if (this.isPaused) {
                     console.log(`Auto-apply paused during step ${stepCount}`);
@@ -746,6 +748,8 @@ export class LinkedInHandler implements JobSiteHandler {
                 console.log(
                     `Found next button for step ${stepCount}, clicking...`
                 );
+                // Save form values before clicking next
+                await this.saveFormValues();
                 nextBtn.click();
                 console.log(`Clicked next button for step ${stepCount}`);
 
@@ -762,6 +766,13 @@ export class LinkedInHandler implements JobSiteHandler {
                 } else {
                     console.log(`No error messages found in step ${stepCount}`);
                 }
+
+                // Fill current step
+                console.log(
+                    `Starting to fill out fields in step ${stepCount}...`
+                );
+                await this.fillCurrentStep();
+                console.log(`Completed filling fields in step ${stepCount}`);
 
                 if (this.isPaused) {
                     console.log(`Auto-apply paused after step ${stepCount}`);
@@ -879,5 +890,55 @@ export class LinkedInHandler implements JobSiteHandler {
         }
 
         return hasErrors;
+    }
+
+    private async saveFormValues(): Promise<void> {
+        console.log("Saving current form values");
+        const formData: Record<string, string> = {};
+
+        try {
+            // Get all form inputs
+            const inputs = document.querySelectorAll('input, select, textarea');
+            
+            for (const input of inputs) {
+                if (!this.isElementVisible(input)) continue;
+
+                let value = '';
+                let identifier = '';
+
+                // Get identifier in priority: name -> id -> aria-label -> placeholder
+                identifier = input.getAttribute('name') || 
+                           input.getAttribute('id') || 
+                           input.getAttribute('aria-label') || 
+                           (input instanceof HTMLInputElement ? input.placeholder : '') || '';
+
+                if (!identifier) continue;
+
+                if (input instanceof HTMLSelectElement) {
+                    value = input.value;
+                } else if (input instanceof HTMLInputElement) {
+                    switch (input.type) {
+                        case 'radio':
+                        case 'checkbox':
+                            value = input.checked ? 'true' : 'false';
+                            break;
+                        default:
+                            value = input.value;
+                    }
+                } else if (input instanceof HTMLTextAreaElement) {
+                    value = input.value;
+                }
+
+                if (value) {
+                    formData[identifier] = value;
+                }
+            }
+
+            // Save to chrome.storage.sync
+            await chrome.storage.sync.set({ 'savedFormValues': formData });
+            console.log("Saved form values:", formData);
+        } catch (error) {
+            console.error("Error saving form values:", error);
+        }
     }
 }
