@@ -171,8 +171,15 @@ export class LinkedInHandler implements JobSiteHandler {
                     submitButton as HTMLElement,
                     false
                 );
-                return true;
+                return true; // Only return true when we've actually submitted
             }
+        }
+
+        if (nextButton) {
+            console.log("Found next button, clicking it...");
+            (nextButton as HTMLElement).click();
+            await this.sleep(2000);
+            return false; // Continue to next step, don't mark as complete
         }
 
         // Check for any validation errors or required fields
@@ -243,7 +250,11 @@ export class LinkedInHandler implements JobSiteHandler {
 
             // Process each step of the application
             let stepCount = 0;
-            while (!this.isPaused) {
+            while (true) {
+                if (this.isPaused) {
+                    console.log("Paused");
+                    await this.sleep(1000);
+                }
                 stepCount++;
                 if (stepCount > this.MAX_STEPS) {
                     console.log(
@@ -255,14 +266,6 @@ export class LinkedInHandler implements JobSiteHandler {
 
                 this.currentStepIndex = stepCount;
                 const result = await this.processApplicationStep(stepCount);
-                if (result) {
-                    return true;
-                }
-
-                if (this.isPaused) {
-                    console.log(`Auto-apply paused during step ${stepCount}`);
-                    return false;
-                }
             }
 
             console.log("Auto-apply paused, stopping application process");
@@ -898,19 +901,23 @@ export class LinkedInHandler implements JobSiteHandler {
 
         try {
             // Get all form inputs
-            const inputs = document.querySelectorAll('input, select, textarea');
-            
+            const inputs = document.querySelectorAll("input, select, textarea");
+
             for (const input of inputs) {
                 if (!this.isElementVisible(input)) continue;
 
-                let value = '';
-                let identifier = '';
+                let value = "";
+                let identifier = "";
 
                 // Get identifier in priority: name -> id -> aria-label -> placeholder
-                identifier = input.getAttribute('name') || 
-                           input.getAttribute('id') || 
-                           input.getAttribute('aria-label') || 
-                           (input instanceof HTMLInputElement ? input.placeholder : '') || '';
+                identifier =
+                    input.getAttribute("name") ||
+                    input.getAttribute("id") ||
+                    input.getAttribute("aria-label") ||
+                    (input instanceof HTMLInputElement
+                        ? input.placeholder
+                        : "") ||
+                    "";
 
                 if (!identifier) continue;
 
@@ -918,9 +925,9 @@ export class LinkedInHandler implements JobSiteHandler {
                     value = input.value;
                 } else if (input instanceof HTMLInputElement) {
                     switch (input.type) {
-                        case 'radio':
-                        case 'checkbox':
-                            value = input.checked ? 'true' : 'false';
+                        case "radio":
+                        case "checkbox":
+                            value = input.checked ? "true" : "false";
                             break;
                         default:
                             value = input.value;
@@ -935,7 +942,7 @@ export class LinkedInHandler implements JobSiteHandler {
             }
 
             // Save to chrome.storage.sync
-            await chrome.storage.sync.set({ 'savedFormValues': formData });
+            await chrome.storage.sync.set({ savedFormValues: formData });
             console.log("Saved form values:", formData);
         } catch (error) {
             console.error("Error saving form values:", error);
