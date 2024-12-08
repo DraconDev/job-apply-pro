@@ -1,4 +1,3 @@
-
 import { ApplicationAnswer } from "@/types";
 import { JobDetails, JobSiteHandler } from "../../common/types";
 
@@ -112,6 +111,8 @@ export class LinkedInHandler implements JobSiteHandler {
             console.error("Failed to increment jobs applied counter:", error);
         }
 
+        console.log("Pressed Escape key after submission");
+        await this.sleep(5000);
         // Press escape to close any popovers/modals
         document.dispatchEvent(
             new KeyboardEvent("keydown", {
@@ -119,7 +120,6 @@ export class LinkedInHandler implements JobSiteHandler {
                 code: "Escape",
             })
         );
-        console.log("Pressed Escape key after submission");
         await this.sleep(5000);
 
         this.isApplying = false;
@@ -154,27 +154,20 @@ export class LinkedInHandler implements JobSiteHandler {
         console.log(`Processing step ${stepCount}/${this.MAX_STEPS}...`);
         await this.sleep(1000);
 
+        const submitButton = await this.waitForElement(
+            `button[type="submit"], 
+             button[aria-label*="submit" i]`,
+            5000
+        );
+        if (submitButton) {
+            console.log("Found submit button, clicking it...");
+            await this.handleSubmitButton(submitButton as HTMLElement, false);
+            return true; // Only return true when we've actually submitted
+        }
+
         // First try to proceed without filling anything
         console.log("Attempting to proceed without filling fields...");
         const nextButton = await this.findNextButton();
-
-        if (!nextButton) {
-            console.log("No next button found, checking for submit button...");
-            // Look specifically for submit buttons
-            const submitButton = await this.waitForElement(
-                'button[type="submit"], button[aria-label*="submit" i], button:contains("Submit"), button:contains("Review")',
-                5000
-            );
-
-            if (submitButton) {
-                console.log("Found submit button, clicking it...");
-                await this.handleSubmitButton(
-                    submitButton as HTMLElement,
-                    false
-                );
-                return true; // Only return true when we've actually submitted
-            }
-        }
 
         if (nextButton) {
             console.log("Found next button, clicking it...");
@@ -536,17 +529,17 @@ export class LinkedInHandler implements JobSiteHandler {
     async findNextButton(): Promise<HTMLElement | null> {
         console.log("Searching for next button...");
         const nextButtons = Array.from(document.querySelectorAll("button"));
+
         const buttonTexts = nextButtons.map((b) =>
             b.textContent?.toLowerCase()
         );
-        console.log("Found buttons with texts:", buttonTexts);
 
         const nextButton = nextButtons.find((button) => {
             const text = button.textContent?.toLowerCase() || "";
             return (
                 text.includes("next") ||
-                text.includes("review") ||
-                text.includes("continue")
+                text.includes("continue") ||
+                text.includes("review")
             );
         }) as HTMLElement;
 
