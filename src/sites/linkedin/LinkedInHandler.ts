@@ -77,23 +77,121 @@ export class LinkedInHandler implements JobSiteHandler {
         }
     }
 
-    async autoApply(): Promise<boolean> {
-        if (this.isApplying && !this.isPaused) {
-            console.log("Already in the process of applying");
+    private async handleSubmitButton(
+        button: HTMLElement,
+        isNextButton: boolean = false
+    ): Promise<boolean> {
+        console.log(
+            "This appears to be a submit button, clicking and waiting 10 seconds..."
+        );
+        button.click();
+        await this.sleep(10000);
+        console.log("Finished 10 second wait after submission");
+        this.isApplying = false;
+
+        if (isNextButton) {
+            // Press escape to close any open popovers
+            document.dispatchEvent(
+                new KeyboardEvent("keydown", {
+                    key: "Escape",
+                    code: "Escape",
+                })
+            );
+            console.log("Pressed Escape key");
+            await this.sleep(3000);
+        }
+        return true;
+    }
+
+    private async handleRegularButton(button: HTMLElement): Promise<void> {
+        console.log(
+            "This appears to be a regular next/done button, clicking it"
+        );
+        button.click();
+        await this.sleep(1000);
+    }
+
+    private async handleValidationErrors(): Promise<boolean> {
+        console.log("Found validation issues, filling required fields...");
+        await this.fillCurrentStep();
+
+        // Try to proceed again
+        const retryButton = await this.findNextButton();
+        if (!retryButton) {
+            console.log("No next button found after filling fields");
+            this.isApplying = false;
             return false;
         }
+        retryButton.click();
+        await this.sleep(1000);
+        return true;
+    }
 
-        // Only set isApplying to true if we're starting fresh (not resuming)
-        if (!this.isApplying) {
-            this.isApplying = true;
-            console.log("Starting auto-apply process");
+    private async processApplicationStep(stepCount: number): Promise<boolean> {
+        console.log(`Processing step ${stepCount}/${this.MAX_STEPS}...`);
+        await this.sleep(1000);
+
+        // First try to proceed without filling anything
+        console.log("Attempting to proceed without filling fields...");
+        const nextButton = await this.findNextButton();
+
+        if (!nextButton) {
+            console.log("No next button found, waiting for done button...");
+            const doneButton = await this.waitForElement(
+                'button[aria-label*="done" i], button[aria-label*="submit" i], button:contains("Done"), button:contains("Submit")',
+                10000
+            );
+
+            if (doneButton) {
+                const buttonText = doneButton.textContent?.toLowerCase() || "";
+                console.log(
+                    `Found button with text: "${doneButton.textContent}"`
+                );
+
+                if (buttonText.includes("submit")) {
+                    return await this.handleSubmitButton(
+                        doneButton as HTMLElement
+                    );
+                } else {
+                    await this.handleRegularButton(doneButton as HTMLElement);
+                }
+            } else {
+                console.log("No done button found after waiting");
+                this.isApplying = false;
+                return false;
+            }
         } else {
-            console.log("Resuming auto-apply process");
+            console.log(
+                `Found next button with text: "${nextButton.textContent}"`
+            );
+            if (nextButton.textContent?.toLowerCase().includes("submit")) {
+                return await this.handleSubmitButton(nextButton, true);
+            } else {
+                await this.handleRegularButton(nextButton);
+            }
         }
 
+        // Check for any validation errors or required fields
+        if (this.hasErrors()) {
+            return await this.handleValidationErrors();
+        } else {
+            console.log("Successfully proceeded without filling fields");
+        }
+
+        return false;
+    }
+
+    async autoApply(): Promise<boolean> {
         try {
+            if (this.isApplying) {
+                console.log("Already applying, please wait...");
+                return false;
+            }
+            this.isApplying = true;
+
             // If we're on the search page, load all job listings
             if (window.location.href.includes("/jobs/")) {
+                console.log("On jobs page, loading listings...");
                 const loaded = await this.loadJobListings();
                 if (!loaded) {
                     console.log("Failed to load job listings");
@@ -141,18 +239,6 @@ export class LinkedInHandler implements JobSiteHandler {
             (easyApplyButton as HTMLElement).click();
             await this.sleep(2000);
 
-            // Wait for the application modal
-            console.log("Waiting for application modal...");
-            const applicationForm = await this.waitForElement(
-                ".jobs-easy-apply-modal"
-            );
-            if (!applicationForm) {
-                console.log("Application form not found after timeout");
-                this.isApplying = false;
-                return false;
-            }
-            console.log("Application modal found, starting form fill");
-
             // Process each step of the application
             let stepCount = 0;
             while (!this.isPaused) {
@@ -166,66 +252,8 @@ export class LinkedInHandler implements JobSiteHandler {
                 }
 
                 this.currentStepIndex = stepCount;
-                console.log(
-                    `Processing step ${stepCount}/${this.MAX_STEPS}...`
-                );
-                await this.sleep(1000);
-
-                // First try to proceed without filling anything
-                console.log("Attempting to proceed without filling fields...");
-                const nextButton = await this.findNextButton();
-                if (!nextButton) {
-                    console.log("No next button found, waiting for done button...");
-                    const doneButton = await this.waitForElement('button[aria-label*="done" i], button[aria-label*="submit" i], button:contains("Done"), button:contains("Submit")', 10000);
-                    if (doneButton) {
-                        console.log("Found done button, clicking it");
-                        (doneButton as HTMLElement).click();
-                        await this.sleep(1000);
-                    } else {
-                        console.log("No done button found after waiting");
-                        this.isApplying = false;
-                    }
-                } else {
-                    console.log(
-                        "Found next button, clicking to proceed without filling fields..."
-                    );
-                    nextButton.click();
-                    await this.sleep(1000);
-                }
-
-                // Check for any validation errors or required fields
-                if (this.hasErrors()) {
-                    console.log(
-                        "Found validation issues, filling required fields..."
-                    );
-                    await this.fillCurrentStep();
-
-                    // Try to proceed again
-                    const retryButton = await this.findNextButton();
-                    if (!retryButton) {
-                        console.log(
-                            "No next button found after filling fields"
-                        );
-                        this.isApplying = false;
-                        return false;
-                    }
-                    retryButton.click();
-                    await this.sleep(1000);
-                } else {
-                    console.log(
-                        "Successfully proceeded without filling fields"
-                    );
-                }
-
-                // Wait longer after clicking the submit button to check for completion
-                // await this.sleep(10000);
-
-                // Check if we're done
-                if (this.isApplicationComplete()) {
-                    console.log("Application completed successfully!");
-                    await this.closeModal();
-                    this.isApplying = false;
-                    this.currentStepIndex = 0;
+                const result = await this.processApplicationStep(stepCount);
+                if (result) {
                     return true;
                 }
 
@@ -282,7 +310,7 @@ export class LinkedInHandler implements JobSiteHandler {
         console.log("Loading job listings from search page");
         try {
             // Wait for the main content section to load
-            await this.sleep(2000); // Give the page time to load
+            await this.sleep(3000); // Give the page more time to load
 
             // Find the main job list by structure - it's the only ul in the main content area
             const mainContent = document.querySelector("main");
@@ -298,18 +326,18 @@ export class LinkedInHandler implements JobSiteHandler {
                 return false;
             }
 
-            // Get all direct li children
+            // Get all direct li children that have "Easy Apply" button
             const allJobItems = Array.from(jobList.children).filter(
-                (element) => element.tagName.toLowerCase() === "li"
+                (element) => {
+                    if (element.tagName.toLowerCase() !== "li") return false;
+                    const buttonText = element.textContent?.toLowerCase() || "";
+                    return buttonText.includes("easy apply");
+                }
             ) as HTMLElement[];
 
-            console.log(`Found ${allJobItems.length} total job items`);
+            console.log(`Found ${allJobItems.length} Easy Apply job items`);
 
             this.jobListings = allJobItems;
-
-            console.log(
-                `Found ${this.jobListings.length} Easy Apply job listings`
-            );
 
             if (this.jobListings.length === 0) {
                 console.log("No Easy Apply job listings found");
@@ -345,12 +373,12 @@ export class LinkedInHandler implements JobSiteHandler {
 
             // Scroll the job into view
             jobItem.scrollIntoView({ behavior: "smooth", block: "center" });
-            await this.sleep(500);
+            await this.sleep(1000); // Wait longer for scroll
 
             // Click the job title link
             if (titleElement) {
                 titleElement.click();
-                await this.sleep(1500); // Wait longer for job details to load
+                await this.sleep(2500); // Wait longer for job details to load
                 this.currentJobIndex++;
                 return true;
             } else {
