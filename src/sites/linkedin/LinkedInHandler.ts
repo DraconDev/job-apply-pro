@@ -1,4 +1,5 @@
-import { ApplicationAnswer } from "@/components/ApplicationMenu";
+
+import { ApplicationAnswer } from "@/types";
 import { JobDetails, JobSiteHandler } from "../../common/types";
 
 export class LinkedInHandler implements JobSiteHandler {
