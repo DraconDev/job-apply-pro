@@ -166,38 +166,59 @@ export class LinkedInHandler implements JobSiteHandler {
                 }
 
                 this.currentStepIndex = stepCount;
-                console.log(`Processing step ${stepCount}/${this.MAX_STEPS}...`);
+                console.log(
+                    `Processing step ${stepCount}/${this.MAX_STEPS}...`
+                );
                 await this.sleep(1000);
 
                 // First try to proceed without filling anything
                 console.log("Attempting to proceed without filling fields...");
                 const nextButton = await this.findNextButton();
                 if (!nextButton) {
-                    console.log("No next button found");
-                    this.isApplying = false;
-                    return false;
+                    console.log("No next button found, waiting for done button...");
+                    const doneButton = await this.waitForElement('button[aria-label*="done" i], button[aria-label*="submit" i], button:contains("Done"), button:contains("Submit")', 10000);
+                    if (doneButton) {
+                        console.log("Found done button, clicking it");
+                        (doneButton as HTMLElement).click();
+                        await this.sleep(1000);
+                    } else {
+                        console.log("No done button found after waiting");
+                        this.isApplying = false;
+                    }
+                } else {
+                    console.log(
+                        "Found next button, clicking to proceed without filling fields..."
+                    );
+                    nextButton.click();
+                    await this.sleep(1000);
                 }
-
-                nextButton.click();
-                await this.sleep(1000);
 
                 // Check for any validation errors or required fields
                 if (this.hasErrors()) {
-                    console.log("Found validation issues, filling required fields...");
+                    console.log(
+                        "Found validation issues, filling required fields..."
+                    );
                     await this.fillCurrentStep();
-                    
+
                     // Try to proceed again
                     const retryButton = await this.findNextButton();
                     if (!retryButton) {
-                        console.log("No next button found after filling fields");
+                        console.log(
+                            "No next button found after filling fields"
+                        );
                         this.isApplying = false;
                         return false;
                     }
                     retryButton.click();
                     await this.sleep(1000);
                 } else {
-                    console.log("Successfully proceeded without filling fields");
+                    console.log(
+                        "Successfully proceeded without filling fields"
+                    );
                 }
+
+                // Wait longer after clicking the submit button to check for completion
+                // await this.sleep(10000);
 
                 // Check if we're done
                 if (this.isApplicationComplete()) {
@@ -776,32 +797,56 @@ export class LinkedInHandler implements JobSiteHandler {
 
     private hasErrors(): boolean {
         // Check for inline error messages (red text under fields)
-        const inlineErrors = document.querySelectorAll(".artdeco-inline-feedback--error");
-        
-        // Check for alert/error messages (usually at top of form)
-        const alerts = document.querySelectorAll('[role="alert"], .alert, .error-message');
-        
-        // Check for required field indicators
-        const requiredFields = document.querySelectorAll('[required], [aria-required="true"]');
-        const emptyRequiredFields = Array.from(requiredFields).filter(field => {
-            if (field instanceof HTMLInputElement || field instanceof HTMLTextAreaElement || field instanceof HTMLSelectElement) {
-                return !field.value;
-            }
-            return false;
-        });
+        const inlineErrors = document.querySelectorAll(
+            ".artdeco-inline-feedback--error"
+        );
 
-        const hasErrors = inlineErrors.length > 0 || alerts.length > 0 || emptyRequiredFields.length > 0;
-        
+        // Check for alert/error messages (usually at top of form)
+        const alerts = document.querySelectorAll(
+            '[role="alert"], .alert, .error-message'
+        );
+
+        // Check for required field indicators
+        const requiredFields = document.querySelectorAll(
+            '[required], [aria-required="true"]'
+        );
+        const emptyRequiredFields = Array.from(requiredFields).filter(
+            (field) => {
+                if (
+                    field instanceof HTMLInputElement ||
+                    field instanceof HTMLTextAreaElement ||
+                    field instanceof HTMLSelectElement
+                ) {
+                    return !field.value;
+                }
+                return false;
+            }
+        );
+
+        const hasErrors =
+            inlineErrors.length > 0 ||
+            alerts.length > 0 ||
+            emptyRequiredFields.length > 0;
+
         if (hasErrors) {
-            console.log('Found form validation issues:');
+            console.log("Found form validation issues:");
             if (inlineErrors.length > 0) {
-                console.log('- Inline errors:', Array.from(inlineErrors).map(el => el.textContent));
+                console.log(
+                    "- Inline errors:",
+                    Array.from(inlineErrors).map((el) => el.textContent)
+                );
             }
             if (alerts.length > 0) {
-                console.log('- Alert messages:', Array.from(alerts).map(el => el.textContent));
+                console.log(
+                    "- Alert messages:",
+                    Array.from(alerts).map((el) => el.textContent)
+                );
             }
             if (emptyRequiredFields.length > 0) {
-                console.log('- Empty required fields:', emptyRequiredFields.length);
+                console.log(
+                    "- Empty required fields:",
+                    emptyRequiredFields.length
+                );
             }
         }
 
