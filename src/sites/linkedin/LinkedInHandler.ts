@@ -151,7 +151,7 @@ export class LinkedInHandler implements JobSiteHandler {
             return false;
         }
 
-        await this.longWait();
+        await this.midWait();
         const doneButtons =
             document.querySelectorAll<HTMLButtonElement>("button");
         const doneButton = Array.from(doneButtons).find(
@@ -220,12 +220,25 @@ export class LinkedInHandler implements JobSiteHandler {
         }
 
         console.log(`Processing step ${stepCount}/${this.MAX_STEPS}...`);
-        await this.sleep(1000);
 
         if (this.isPaused) {
             console.log("Application paused during step processing");
             return false;
         }
+
+        this.saveFormInput();
+
+        // Check for any alerts before proceeding
+        const alerts = await this.checkForAlerts();
+        if (alerts.length > 0) {
+            console.log("Found alerts during step processing:", alerts);
+            // If we have any alerts, cancel this application and move to next
+            console.log("Canceling current application due to alerts");
+            await this.skipCurrentApplication();
+            return false;
+        }
+
+        await this.sleep(1000);
 
         const submitButton = await this.waitForElement(
             `button[type="submit"], 
@@ -542,71 +555,129 @@ export class LinkedInHandler implements JobSiteHandler {
 
     private async fillCurrentStep(): Promise<void> {
         console.log("Starting to fill current step");
-        const formInputs = this.getVisibleFormElements();
-        console.log(`Found ${formInputs.length} form inputs`);
+        const formElements = this.getVisibleFormElements();
+        console.log(`Found ${formElements.length} form elements`);
 
-        for (const input of formInputs) {
+        for (const element of formElements) {
             try {
-                // Type assertion to HTMLElement
-                await this.saveFormInput(
-                    input as
-                        | HTMLInputElement
-                        | HTMLTextAreaElement
-                        | HTMLSelectElement
-                );
-                await this.fillFormInput(
-                    input as
-                        | HTMLInputElement
-                        | HTMLTextAreaElement
-                        | HTMLSelectElement
-                );
+                if (
+                    element instanceof HTMLInputElement ||
+                    element instanceof HTMLTextAreaElement ||
+                    element instanceof HTMLSelectElement
+                ) {
+                    await this.saveFormInput();
+                    await this.fillFormInput(element);
+                }
             } catch (error) {
-                console.error("Error handling input:", error);
+                console.error("Error processing form element:", error);
             }
         }
         console.log("Finished filling current step");
     }
 
-    async saveFormInput(
-        element: HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement
-    ) {
+    async saveFormInput() {
         try {
-            // Get identifiers from the element
-            const identifiers = [
-                element.id,
-                element.name,
-                element.getAttribute("aria-label"),
-                element.getAttribute("placeholder"),
-            ].filter(Boolean) as string[];
+            // Skip if we're on a resume page
+            if (
+                document.body.textContent
+                    ?.toLowerCase()
+                    .includes("upload resume")
+            ) {
+                console.log("Skipping form input save on upload resume page");
+                return;
+            }
 
-            if (identifiers.length === 0) return;
+            const elements = this.getVisibleFormElements();
+            const questionGroups = new Map<string, Element[]>();
 
-            // Get element value and type
-            const value = element.value;
-            const type = element.tagName.toLowerCase();
+            // Group elements by their question
+            for (const element of elements) {
+                if (
+                    !(
+                        element instanceof HTMLInputElement ||
+                        element instanceof HTMLTextAreaElement ||
+                        element instanceof HTMLSelectElement
+                    )
+                ) {
+                    continue;
+                }
 
-            // Create a unique key from identifiers
-            const key = identifiers.join("|");
+                const questionLabel = this.getQuestionLabel(element);
+                if (!questionGroups.has(questionLabel)) {
+                    questionGroups.set(questionLabel, []);
+                }
+                questionGroups.get(questionLabel)?.push(element);
+            }
 
-            // Get existing form inputs
+            // Get all saved form inputs once
             const result = await chrome.storage.sync.get(["savedFormInputs"]);
             const savedFormInputs: SavedFormInputs =
                 result.savedFormInputs || {};
 
-            // Update or create form input
-            savedFormInputs[key] = {
-                value,
-                type,
-                identifiers,
-                lastUsed: Date.now(),
-                useCount: (savedFormInputs[key]?.useCount || 0) + 1,
-            };
+            // Update each question group
+            for (const [question, elements] of questionGroups) {
+                const identifiers = elements
+                    .flatMap((element) => [
+                        element.id,
+                        (element as HTMLInputElement).name,
+                        element.getAttribute("aria-label"),
+                        element.getAttribute("placeholder"),
+                    ])
+                    .filter(Boolean) as string[];
 
-            // Save back to storage
+                if (identifiers.length === 0) continue;
+
+                // Use the question as the key
+                savedFormInputs[question] = {
+                    value: (
+                        elements[0] as
+                            | HTMLInputElement
+                            | HTMLTextAreaElement
+                            | HTMLSelectElement
+                    ).value, // Save the first element's value
+                    type:
+                        elements[0] instanceof HTMLSelectElement
+                            ? "select"
+                            : elements[0] instanceof HTMLTextAreaElement
+                            ? "textarea"
+                            : (elements[0] as HTMLInputElement).type,
+                    identifiers,
+                    lastUsed: Date.now(),
+                    useCount: (savedFormInputs[question]?.useCount || 0) + 1,
+                };
+
+                const element = elements[0] as HTMLInputElement;
+                if (element) {
+                    console.log("Prepared form input for saving:", {
+                        question,
+                        value: element.value,
+                        type: savedFormInputs[question].type,
+                        identifiers,
+                    });
+                }
+            }
+
+            // Save all form inputs at once
             await chrome.storage.sync.set({ savedFormInputs });
+            console.log("Successfully saved all form inputs");
         } catch (error) {
             console.error("Failed to save form input:", error);
         }
+    }
+
+    private getQuestionLabel(element: Element): string {
+        // Try to find the closest label
+        const label = element.closest("label");
+        if (label) {
+            return label.textContent?.trim() || "";
+        }
+
+        // Fallback to aria-label or placeholder
+        return (
+            element.getAttribute("aria-label") ||
+            element.getAttribute("placeholder") ||
+            "Unknown Question"
+        );
     }
 
     async fillFormInput(
@@ -616,7 +687,7 @@ export class LinkedInHandler implements JobSiteHandler {
             // Get identifiers from the element
             const identifiers = [
                 element.id,
-                element.name,
+                (element as HTMLInputElement).name,
                 element.getAttribute("aria-label"),
                 element.getAttribute("placeholder"),
             ].filter(Boolean) as string[];
@@ -815,13 +886,69 @@ export class LinkedInHandler implements JobSiteHandler {
     private getVisibleFormElements(): Element[] {
         // First find the dialog element
         const dialog = document.querySelector('[role="dialog"]');
+        console.log(
+            "Looking for dialog element:",
+            dialog ? "Found" : "Not found"
+        );
         if (!dialog) return [];
 
         // Then find form elements within the dialog
         const allElements = dialog.querySelectorAll("input, select, textarea");
-        return Array.from(allElements).filter((element) => {
-            return this.isElementVisible(element);
+        console.log(
+            `Found ${allElements.length} total form elements in dialog`
+        );
+
+        const visibleElements = Array.from(allElements).filter((element) => {
+            const isVisible = this.isElementVisible(element);
+            const elementInfo = {
+                type:
+                    element instanceof HTMLInputElement
+                        ? element.type
+                        : element.tagName.toLowerCase(),
+                id: element.id || "no-id",
+                name: (element as HTMLInputElement).name || "no-name",
+                "aria-label":
+                    element.getAttribute("aria-label") || "no-aria-label",
+                visible: isVisible,
+            };
+            console.log("Form element info:", elementInfo);
+            return isVisible;
         });
+
+        console.log(
+            `Found ${visibleElements.length} visible form elements out of ${allElements.length} total`
+        );
+
+        // Log details of visible elements
+        visibleElements.forEach((element, index) => {
+            const elementDetails = {
+                index,
+                type:
+                    element instanceof HTMLInputElement
+                        ? element.type
+                        : element.tagName.toLowerCase(),
+                value:
+                    element instanceof HTMLInputElement ||
+                    element instanceof HTMLTextAreaElement ||
+                    element instanceof HTMLSelectElement
+                        ? element.value
+                        : "N/A",
+                id: element.id || "no-id",
+                name: (element as HTMLInputElement).name || "no-name",
+                "aria-label":
+                    element.getAttribute("aria-label") || "no-aria-label",
+                placeholder:
+                    element instanceof HTMLInputElement
+                        ? element.placeholder
+                        : "no-placeholder",
+            };
+            console.log(
+                `Visible element ${index + 1} details:`,
+                elementDetails
+            );
+        });
+
+        return visibleElements;
     }
 
     // Reset the job index when starting a new search
@@ -933,18 +1060,6 @@ export class LinkedInHandler implements JobSiteHandler {
                 if (this.isPaused) {
                     console.log(`Auto-apply paused during step ${stepCount}`);
                     return;
-                }
-
-                const errorMessages = document.querySelectorAll(
-                    ".artdeco-inline-feedback--error"
-                );
-                if (errorMessages.length > 0) {
-                    console.log(
-                        `Found ${errorMessages.length} error messages in step ${stepCount}:`,
-                        Array.from(errorMessages).map((el) => el.textContent)
-                    );
-                } else {
-                    console.log(`No error messages found in step ${stepCount}`);
                 }
 
                 // Fill current step
@@ -1190,6 +1305,25 @@ export class LinkedInHandler implements JobSiteHandler {
         } catch (error) {
             console.error("Error saving form values:", error);
         }
+    }
+
+    private async checkForAlerts(): Promise<string[]> {
+        // Find all elements with role="alert"
+        const alertElements = document.querySelectorAll('[role="alert"]');
+        const alertMessages: string[] = [];
+
+        alertElements.forEach((element) => {
+            const text = element.textContent?.trim();
+            if (text) {
+                alertMessages.push(text);
+            }
+        });
+
+        if (alertMessages.length > 0) {
+            console.log("Found alert messages:", alertMessages);
+        }
+
+        return alertMessages;
     }
 }
 
