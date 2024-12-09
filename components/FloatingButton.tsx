@@ -86,7 +86,7 @@ const FloatingButton: React.FC<FloatingButtonProps> = ({
     const buttonConfig = {
         idle: {
             text: "Start",
-            color: "bg-green-500 hover:bg-green-600",
+            color: "bg-emerald-600 hover:bg-emerald-700 text-white",
             icon: (
                 <>
                     <path
@@ -106,7 +106,7 @@ const FloatingButton: React.FC<FloatingButtonProps> = ({
         },
         running: {
             text: "Pause",
-            color: "bg-yellow-500 hover:bg-yellow-600",
+            color: "bg-yellow-500 hover:bg-yellow-600 text-white",
             icon: (
                 <path
                     strokeLinecap="round"
@@ -118,7 +118,7 @@ const FloatingButton: React.FC<FloatingButtonProps> = ({
         },
         paused: {
             text: "Resume",
-            color: "bg-blue-500 hover:bg-blue-600",
+            color: "bg-blue-600 hover:bg-blue-700 text-white",
             icon: (
                 <path
                     strokeLinecap="round"
@@ -154,19 +154,24 @@ const FloatingButton: React.FC<FloatingButtonProps> = ({
                         <div className="w-full flex flex-col space-y-2">
                             <button
                                 onClick={async () => {
-                                    if (!onSkip || state !== "running") return;
+                                    if (!onSkip || (state !== "running" && state !== "paused")) return;
                                     try {
                                         await onSkip();
-                                        console.log("Successfully skipped current application");
+                                        console.log(
+                                            "Successfully skipped current application"
+                                        );
                                     } catch (error) {
-                                        console.error("Failed to skip application:", error);
+                                        console.error(
+                                            "Failed to skip application:",
+                                            error
+                                        );
                                     }
                                 }}
-                                disabled={state !== "running"}
-                                className={`w-full flex items-center justify-center px-4 py-2 rounded-lg text-white font-medium transition-colors ${
-                                    state === "running"
-                                        ? "bg-gray-500 hover:bg-gray-600"
-                                        : "bg-gray-300 cursor-not-allowed"
+                                disabled={state !== "running" && state !== "paused"}
+                                className={`w-full flex items-center justify-center px-4 py-2 rounded-lg font-medium transition-colors ${
+                                    state === "running" || state === "paused"
+                                        ? "bg-gray-600 hover:bg-gray-700 text-white"
+                                        : "bg-gray-100 text-gray-400 cursor-not-allowed"
                                 }`}
                             >
                                 <svg
@@ -188,20 +193,25 @@ const FloatingButton: React.FC<FloatingButtonProps> = ({
 
                             <button
                                 onClick={async () => {
-                                    if (!onStop || state !== "running") return;
+                                    if (!onStop || (state !== "running" && state !== "paused")) return;
                                     try {
                                         await onStop();
                                         setState("idle");
-                                        console.log("Successfully stopped auto-apply");
+                                        console.log(
+                                            "Successfully stopped auto-apply"
+                                        );
                                     } catch (error) {
-                                        console.error("Failed to stop auto-apply:", error);
+                                        console.error(
+                                            "Failed to stop auto-apply:",
+                                            error
+                                        );
                                     }
                                 }}
-                                disabled={state !== "running"}
-                                className={`w-full flex items-center justify-center px-4 py-2 rounded-lg text-white font-medium transition-colors ${
-                                    state === "running"
-                                        ? "bg-red-500 hover:bg-red-600"
-                                        : "bg-red-300 cursor-not-allowed"
+                                disabled={state !== "running" && state !== "paused"}
+                                className={`w-full flex items-center justify-center px-4 py-2 rounded-lg font-medium transition-colors ${
+                                    state === "running" || state === "paused"
+                                        ? "bg-red-600 hover:bg-red-700 text-white"
+                                        : "bg-gray-100 text-gray-400 cursor-not-allowed"
                                 }`}
                             >
                                 <svg
@@ -215,13 +225,7 @@ const FloatingButton: React.FC<FloatingButtonProps> = ({
                                         strokeLinecap="round"
                                         strokeLinejoin="round"
                                         strokeWidth={2}
-                                        d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-                                    />
-                                    <path
-                                        strokeLinecap="round"
-                                        strokeLinejoin="round"
-                                        strokeWidth={2}
-                                        d="M9 10a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z"
+                                        d="M6 18L18 6M6 6l12 12"
                                     />
                                 </svg>
                                 Stop
@@ -268,7 +272,12 @@ const FloatingButton: React.FC<FloatingButtonProps> = ({
                         <div className="flex flex-col space-y-2">
                             <button
                                 onClick={() => {
-                                    window.open(chrome.runtime.getURL("form-info/index.html"), "_blank");
+                                    window.open(
+                                        chrome.runtime.getURL(
+                                            "form-info/index.html"
+                                        ),
+                                        "_blank"
+                                    );
                                     setIsMenuOpen(false);
                                 }}
                                 className="w-full flex items-center justify-center px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg font-medium transition-colors"

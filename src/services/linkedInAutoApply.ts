@@ -80,6 +80,8 @@ export class LinkedInAutoApplyService {
             window.clearInterval(this.intervalId);
             this.intervalId = null;
         }
+        // Cancel any ongoing application
+        this.handler.cancelApplication();
     }
 
     private moveToNextJob(): void {

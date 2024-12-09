@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from "react";
 import { ApplicationAnswer } from "../types";
-import HelpButton from "./HelpButton";
 
 interface ApplicationMenuProps {
     isOpen: boolean;
@@ -97,7 +96,10 @@ const ApplicationMenu: React.FC<ApplicationMenuProps> = ({
                 <div className="flex flex-col space-y-2">
                     <button
                         onClick={() => {
-                            window.open(chrome.runtime.getURL("form-info/index.html"), "_blank");
+                            window.open(
+                                chrome.runtime.getURL("form-info/index.html"),
+                                "_blank"
+                            );
                             onClose();
                         }}
                         className="w-full flex items-center justify-center px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg font-medium transition-colors"
