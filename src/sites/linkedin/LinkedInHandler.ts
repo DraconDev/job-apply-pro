@@ -337,106 +337,101 @@ export class LinkedInHandler implements JobSiteHandler {
     }
 
     async autoApply(): Promise<boolean> {
-        try {
-            if (this.isApplying) {
-                console.log("Already applying, please wait...");
-                return false;
-            }
-            this.isApplying = true;
-
-            // If we're on the search page, load all job listings
-            if (window.location.href.includes("/jobs/")) {
-                console.log("On jobs page, loading listings...");
-                const loaded = await this.loadJobListings();
-                if (!loaded) {
-                    console.log("Failed to load job listings");
-                    this.isApplying = false;
-                    return false;
-                }
-
-                // Select the next job to process
-                const selected = await this.selectNextJob();
-                if (!selected) {
-                    console.log("Failed to select next job");
-                    this.isApplying = false;
-                    return false;
-                }
-
-                // Wait for the job details to load
-                await this.sleep(1500);
-            }
-
-            // Check if already applied to current job
-            if (this.isJobAlreadyApplied()) {
-                console.log("Skipping job - already applied");
-                this.isApplying = false;
-                return false;
-            }
-
-            // Click the apply button
-            console.log("Looking for Easy Apply button...");
-
-            // Find any button that has "job" in its class name and "easy apply" in text
-            const buttons = Array.from(document.querySelectorAll("button"));
-            const easyApplyButton = buttons.find(
-                (button) =>
-                    button.className.toLowerCase().includes("job") &&
-                    button.textContent?.toLowerCase().includes("easy apply")
-            );
-
-            if (!easyApplyButton) {
-                console.log("No Easy Apply button found");
-                this.isApplying = false;
-                return false;
-            }
-
-            if (this.isPaused) {
-                console.log("Application paused before clicking Easy Apply");
-                return false;
-            }
-
-            console.log("Found Easy Apply button, clicking...");
-            (easyApplyButton as HTMLElement).click();
-            await this.sleep(2000);
-
-            // Process each step of the application
-            let stepCount = 0;
-            while (this.isApplying) {
-                if (this.isPaused) {
-                    console.log("Application paused, waiting...");
-                    await this.sleep(1000);
-                    continue;
-                }
-
-                stepCount++;
-                if (stepCount > this.MAX_STEPS) {
-                    console.log(
-                        `Too many steps (${stepCount} > ${this.MAX_STEPS}), canceling application`
-                    );
-                    await this.cancelApplication();
-                    return false;
-                }
-
-                this.currentStepIndex = stepCount;
-                const result = await this.processApplicationStep(stepCount);
-                if (result) {
-                    console.log("Application completed successfully");
-                    return true;
-                }
-
-                if (this.isPaused) {
-                    console.log("Application paused after step processing");
-                    return false;
-                }
-            }
-
-            console.log("Application process stopped");
+        if (this.isApplying) {
+            console.log("Already applying to jobs");
             return false;
-        } catch (error) {
-            console.error("Error during auto-apply:", error);
+        }
+
+        this.isApplying = true;
+
+        // If we're on the search page, load all job listings
+        if (window.location.href.includes("/jobs/")) {
+            console.log("On jobs page, loading listings...");
+            const loaded = await this.loadJobListings();
+            if (!loaded) {
+                console.log("Failed to load job listings");
+                this.isApplying = false;
+                return false;
+            }
+
+            // Select the next job to process
+            const selected = await this.selectNextJob();
+            if (!selected) {
+                console.log("Failed to select next job");
+                this.isApplying = false;
+                return false;
+            }
+
+            // Wait for the job details to load
+            await this.sleep(1500);
+        }
+
+        // Check if already applied to current job
+        if (this.isJobAlreadyApplied()) {
+            console.log("Skipping job - already applied");
             this.isApplying = false;
             return false;
         }
+
+        // Click the apply button
+        console.log("Looking for Easy Apply button...");
+
+        // Find any button that has "job" in its class name and "easy apply" in text
+        const buttons = Array.from(document.querySelectorAll("button"));
+        const easyApplyButton = buttons.find(
+            (button) =>
+                button.className.toLowerCase().includes("job") &&
+                button.textContent?.toLowerCase().includes("easy apply")
+        );
+
+        if (!easyApplyButton) {
+            console.log("No Easy Apply button found");
+            this.isApplying = false;
+            return false;
+        }
+
+        if (this.isPaused) {
+            console.log("Application paused before clicking Easy Apply");
+            return false;
+        }
+
+        console.log("Found Easy Apply button, clicking...");
+        (easyApplyButton as HTMLElement).click();
+        await this.sleep(2000);
+
+        // Process each step of the application
+        let stepCount = 0;
+        while (this.isApplying) {
+            if (this.isPaused) {
+                console.log("Application paused, waiting...");
+                await this.sleep(1000);
+                continue;
+            }
+
+            stepCount++;
+            if (stepCount > this.MAX_STEPS) {
+                console.log(
+                    `Too many steps (${stepCount} > ${this.MAX_STEPS}), canceling application`
+                );
+                await this.cancelApplication();
+                return false;
+            }
+
+            this.currentStepIndex = stepCount;
+            const result = await this.processApplicationStep(stepCount);
+            if (result) {
+                console.log("Application completed successfully");
+                return true;
+            }
+
+            if (this.isPaused) {
+                console.log("Application paused after step processing");
+                return false;
+            }
+        }
+
+        console.log("Application process stopped");
+        return false;
     }
 
     private isApplicationComplete(): boolean {
@@ -628,90 +623,141 @@ export class LinkedInHandler implements JobSiteHandler {
     async saveFormInput() {
         try {
             // Skip if we're on a resume page
-            if (
-                document.body.textContent
-                    ?.toLowerCase()
-                    .includes("upload resume")
-            ) {
-                console.log("Skipping form input save on upload resume page");
+            // if (
+            //     document.body.textContent
+            //         ?.toLowerCase()
+            //         .includes("upload resume")
+            // ) {
+            //     console.log("Skipping form input save on upload resume page");
+            //     return;
+            // }
+
+            // Find divs that contain both label and input elements
+            const dialog = document.querySelector('[role="dialog"]');
+            if (!dialog) {
+                console.log("No dialog found");
                 return;
             }
 
-            const elements = this.getVisibleFormElements();
-            const questionGroups = new Map<string, Element[]>();
-
-            // Group elements by their question
-            for (const element of elements) {
-                if (
-                    !(
-                        element instanceof HTMLInputElement ||
-                        element instanceof HTMLTextAreaElement ||
-                        element instanceof HTMLSelectElement
-                    )
-                ) {
-                    continue;
+            // Find divs that contain both label and input elements
+            const formDivs = Array.from(dialog.querySelectorAll("div")).filter(
+                (div) => {
+                    const hasLabel = div.querySelector("label") !== null;
+                    const hasInput =
+                        div.querySelector("input, select, textarea") !== null;
+                    return hasLabel && hasInput;
                 }
+            );
 
-                const questionLabel = this.getQuestionLabel(element);
-                if (!questionGroups.has(questionLabel)) {
-                    questionGroups.set(questionLabel, []);
-                }
-                questionGroups.get(questionLabel)?.push(element);
-            }
+            console.log(`Found ${formDivs.length} form divs with label+input`);
+
+            // Combine and deduplicate form elements
+            const allFormElements = new Set([...formDivs]);
+            console.log(`Total unique form elements: ${allFormElements.size}`);
 
             // Get all saved form inputs once
             const result = await chrome.storage.sync.get(["savedFormInputs"]);
             const savedFormInputs: SavedFormInputs =
                 result.savedFormInputs || {};
 
-            // Update each question group
-            for (const [question, elements] of questionGroups) {
-                const element = elements[0] as
-                    | HTMLInputElement
-                    | HTMLTextAreaElement
-                    | HTMLSelectElement;
-                if (!element || !element.value.trim()) continue;
+            // Process each form element
+            for (const element of allFormElements) {
+                // Find the input/select/textarea element
+                const inputElement = element.querySelector(
+                    "input, select, textarea"
+                );
+                if (!inputElement || !this.isElementVisible(inputElement))
+                    continue;
 
-                const identifiers = elements
-                    .flatMap((element) => [
-                        element.id,
-                        (element as HTMLInputElement).name,
-                        element.getAttribute("aria-label"),
-                        element.getAttribute("placeholder"),
-                    ])
-                    .filter(Boolean) as string[];
+                // Try to find label in this order:
+                // 1. Associated label element (using 'for' attribute)
+                // 2. Label element within the div
+                // 3. Any element with text that's not the input
+                let label: string | undefined;
+                const labelElement =
+                    (inputElement.id &&
+                        document.querySelector(
+                            `label[for="${inputElement.id}"]`
+                        )) ||
+                    element.querySelector("label") ||
+                    Array.from(element.children).find(
+                        (child) =>
+                            child !== inputElement &&
+                            child.textContent?.trim() &&
+                            !child.querySelector("input, select, textarea")
+                    );
 
-                if (identifiers.length === 0) continue;
+                // Clean up duplicated label text
+                const rawLabel = labelElement?.textContent?.trim();
+                if (rawLabel) {
+                    // Split the text in half
+                    const parts = [
+                        rawLabel.slice(0, rawLabel.length / 2),
+                        rawLabel.slice(rawLabel.length / 2),
+                    ].map((part) => part.trim());
+
+                    // If the first part equals the second part, just use the first part
+                    label = parts[0] === parts[1] ? parts[0] : rawLabel;
+                }
+
+                console.log("Processing form component:", {
+                    label,
+                    inputType: inputElement.tagName.toLowerCase(),
+                    inputValue: (
+                        inputElement as
+                            | HTMLInputElement
+                            | HTMLTextAreaElement
+                            | HTMLSelectElement
+                    ).value,
+                });
+
+                if (
+                    !label ||
+                    !(
+                        inputElement instanceof HTMLInputElement ||
+                        inputElement instanceof HTMLTextAreaElement ||
+                        inputElement instanceof HTMLSelectElement
+                    )
+                )
+                    continue;
+
+                const value = inputElement.value.trim();
+                if (!value) continue;
+
+                const identifiers = [
+                    inputElement.id,
+                    (inputElement as HTMLInputElement).name,
+                    inputElement.getAttribute("aria-label"),
+                    inputElement.getAttribute("placeholder"),
+                ].filter(Boolean) as string[];
 
                 // Only update if the value is different or the field doesn't exist
-                const currentValue = element.value.trim();
-                const existingInput = savedFormInputs[question];
-
-                if (!existingInput || existingInput.value !== currentValue) {
-                    savedFormInputs[question] = {
-                        ...existingInput, // Preserve existing data if any
-                        value: currentValue,
+                const existingInput = savedFormInputs[label];
+                if (!existingInput || existingInput.value !== value) {
+                    savedFormInputs[label] = {
+                        ...existingInput,
+                        value,
                         type:
-                            element instanceof HTMLSelectElement
+                            inputElement instanceof HTMLSelectElement
                                 ? "select"
-                                : element instanceof HTMLTextAreaElement
+                                : inputElement instanceof HTMLTextAreaElement
                                 ? "textarea"
-                                : element.type,
+                                : inputElement.type,
                         identifiers: [
                             ...new Set([
                                 ...(existingInput?.identifiers || []),
                                 ...identifiers,
                             ]),
-                        ], // Merge and deduplicate identifiers
+                        ],
                         lastUsed: Date.now(),
                         useCount: (existingInput?.useCount || 0) + 1,
                     };
 
                     console.log("Updated form input:", {
-                        question,
-                        value: currentValue,
-                        type: savedFormInputs[question].type,
-                        identifiers: savedFormInputs[question].identifiers,
+                        label,
+                        value,
+                        type: savedFormInputs[label].type,
+                        identifiers: savedFormInputs[label].identifiers,
                     });
                 }
             }
@@ -728,18 +774,45 @@ export class LinkedInHandler implements JobSiteHandler {
     }
 
     private getQuestionLabel(element: Element): string {
-        // Try to find the closest label
-        const label = element.closest("label");
-        if (label) {
-            return label.textContent?.trim() || "";
+        // Find the parent form component
+        const formComponent = element.closest('[class*="form-component"]');
+        console.log("Found form component:", formComponent?.className);
+
+        if (formComponent) {
+            // Log all children for debugging
+            console.log(
+                "Form component children:",
+                Array.from(formComponent.children).map((child) => ({
+                    tagName: child.tagName,
+                    className: child.className,
+                    textContent: child.textContent?.trim(),
+                    isInputElement: child === element,
+                }))
+            );
+
+            // Get the first text content that's not from the input/select element
+            const label = Array.from(formComponent.children)
+                .find((child) => child !== element && child.textContent?.trim())
+                ?.textContent?.trim();
+
+            console.log(
+                "Found label:",
+                label,
+                "for element:",
+                element.tagName,
+                element.getAttribute("id")
+            );
+            if (label) return label;
         }
 
-        // Fallback to aria-label or placeholder
-        return (
+        // Fallback to element identifiers
+        const fallbackLabel =
             element.getAttribute("aria-label") ||
             element.getAttribute("placeholder") ||
-            "Unknown Question"
-        );
+            "Unknown Question";
+
+        console.log("Using fallback label:", fallbackLabel);
+        return fallbackLabel;
     }
 
     async fillFormInput(

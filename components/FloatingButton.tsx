@@ -13,10 +13,12 @@ const FloatingButton: React.FC<FloatingButtonProps> = ({
 }) => {
     const [state, setState] = useState<"idle" | "running" | "paused">("idle");
     const [jobsApplied, setJobsApplied] = useState(0);
+    const [progress, setProgress] = useState(0);
 
     useEffect(() => {
         const loadJobsApplied = async () => {
             const result = await chrome.storage.sync.get(["jobsApplied"]);
+            console.log("Loading jobs applied from storage:", result);
             setJobsApplied(result.jobsApplied || 0);
         };
 
@@ -26,6 +28,7 @@ const FloatingButton: React.FC<FloatingButtonProps> = ({
             [key: string]: chrome.storage.StorageChange;
         }) => {
             if (changes.jobsApplied) {
+                console.log("Jobs applied changed:", changes.jobsApplied);
                 setJobsApplied(changes.jobsApplied.newValue || 0);
             }
         };
@@ -33,6 +36,39 @@ const FloatingButton: React.FC<FloatingButtonProps> = ({
         chrome.storage.sync.onChanged.addListener(listener);
         return () => chrome.storage.sync.onChanged.removeListener(listener);
     }, []);
+
+    useEffect(() => {
+        let animationFrame: number;
+        let startTime: number | undefined;
+
+        const animate = (timestamp: number) => {
+            if (!startTime) startTime = timestamp;
+            const elapsed = timestamp - startTime;
+            const duration = 2000; // 2 second cycle
+
+            // Calculate progress from 0 to 70 (100 - 30 to account for bar width)
+            let progress = (elapsed % duration) / duration * 70;
+
+            setProgress(progress);
+
+            if (state === "running") {
+                animationFrame = requestAnimationFrame(animate);
+            }
+        };
+
+        if (state === "running") {
+            startTime = undefined;
+            animationFrame = requestAnimationFrame(animate);
+        } else {
+            setProgress(0);
+        }
+
+        return () => {
+            if (animationFrame) {
+                cancelAnimationFrame(animationFrame);
+            }
+        };
+    }, [state]);
 
     const handleToggle = async () => {
         try {
@@ -80,20 +116,12 @@ const FloatingButton: React.FC<FloatingButtonProps> = ({
             text: "Start",
             color: "bg-emerald-600 hover:bg-emerald-700 text-white",
             icon: (
-                <>
-                    <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"
-                    />
-                    <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-                    />
-                </>
+                <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"
+                />
             ),
         },
         running: {
@@ -104,7 +132,7 @@ const FloatingButton: React.FC<FloatingButtonProps> = ({
                     strokeLinecap="round"
                     strokeLinejoin="round"
                     strokeWidth={2}
-                    d="M10 9v6m4-6v6m7-3a9 9 0 11-18 0 9 9 0 0118 0z"
+                    d="M10 9v6m4-6v6m-7-3a9 9 0 1118 0 9 9 0 01-18 0z"
                 />
             ),
         },
@@ -126,21 +154,34 @@ const FloatingButton: React.FC<FloatingButtonProps> = ({
         <div className="fixed top-1/2 right-4 -translate-y-1/2 w-64 rounded-lg shadow-xl border-2 border-gray-300 p-4 z-[2147483647]">
             <div className="flex relative flex-col space-y-4">
                 <div className="flex flex-col p-4 space-y-2 bg-white rounded-lg">
-                    <button
-                        onClick={handleToggle}
-                        className={`w-full flex items-center justify-center px-4 py-2 rounded-lg text-white font-medium transition-colors ${buttonConfig[state].color}`}
-                    >
-                        <svg
-                            xmlns="http://www.w3.org/2000/svg"
-                            className="mr-2 w-5 h-5"
-                            fill="none"
-                            viewBox="0 0 24 24"
-                            stroke="currentColor"
+                    <div className="relative">
+                        {state === "running" && (
+                            <div className="overflow-hidden mb-2 w-full h-1 bg-gray-200 rounded-b-lg">
+                                <div
+                                    className="h-full bg-blue-600 transition-all duration-100 ease-linear"
+                                    style={{
+                                        width: "30%",
+                                        marginLeft: `${progress}%`,
+                                    }}
+                                />
+                            </div>
+                        )}
+                        <button
+                            className={`w-full flex items-center justify-center px-4 py-2 rounded-lg text-white font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 ${buttonConfig[state].color}`}
+                            onClick={handleToggle}
                         >
-                            {buttonConfig[state].icon}
-                        </svg>
-                        {buttonConfig[state].text}
-                    </button>
+                            <svg
+                                xmlns="http://www.w3.org/2000/svg"
+                                className="mr-2 w-5 h-5"
+                                fill="none"
+                                viewBox="0 0 24 24"
+                                stroke="currentColor"
+                            >
+                                {buttonConfig[state].icon}
+                            </svg>
+                            {buttonConfig[state].text}
+                        </button>
+                    </div>
 
                     <div className="flex flex-col space-y-2 w-full">
                         <button
