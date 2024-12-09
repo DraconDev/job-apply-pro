@@ -1,3 +1,4 @@
+import { FormInput } from "@/src/types";
 import { ApplicationAnswer } from "@/types";
 import { JobDetails, JobSiteHandler } from "../../common/types";
 
@@ -87,6 +88,9 @@ export class LinkedInHandler implements JobSiteHandler {
         }
 
         console.log("Handling submit button click...");
+
+        // Save form inputs before submitting
+        await this.saveFormInput();
 
         // First click the submit button
         button.click();
@@ -231,11 +235,55 @@ export class LinkedInHandler implements JobSiteHandler {
         // Check for any alerts before proceeding
         const alerts = await this.checkForAlerts();
         if (alerts.length > 0) {
-            console.log("Found alerts during step processing:", alerts);
-            // If we have any alerts, cancel this application and move to next
-            console.log("Canceling current application due to alerts");
-            await this.skipCurrentApplication();
-            return false;
+            console.log(
+                "Found alerts, pausing for 30 seconds for possible manual input:",
+                alerts
+            );
+
+            // Set pause state
+            this.isPaused = true;
+
+            // Create a timeout that will be cleared if we unpause early
+            const timeoutPromise = new Promise<void>((resolve) => {
+                const timeout = setTimeout(() => {
+                    // Only unpause if we haven't already been unpaused manually
+                    if (this.isPaused) {
+                        console.log(
+                            "30 seconds elapsed, automatically unpausing"
+                        );
+                        this.isPaused = false;
+                    }
+                    resolve();
+                }, 30000);
+
+                // Set up an interval to check if we've been manually unpaused
+                const checkInterval = setInterval(() => {
+                    if (!this.isPaused) {
+                        console.log(
+                            "Manual unpause detected, clearing auto-unpause timer"
+                        );
+                        clearTimeout(timeout);
+                        clearInterval(checkInterval);
+                        resolve();
+                    }
+                }, 500);
+            });
+
+            // Wait for either timeout or manual unpause
+            await timeoutPromise;
+
+            // Check if we should continue or cancel
+            const updatedAlerts = await this.checkForAlerts();
+            if (updatedAlerts.length > 0) {
+                console.log(
+                    "Alerts still present after pause, canceling application:",
+                    updatedAlerts
+                );
+                await this.skipCurrentApplication();
+                return false;
+            } else {
+                console.log("Alerts resolved, continuing with application");
+            }
         }
 
         await this.sleep(1000);
@@ -271,6 +319,8 @@ export class LinkedInHandler implements JobSiteHandler {
 
         if (nextButton) {
             console.log("Found next button, clicking it...");
+            // Save form inputs before clicking next
+            await this.saveFormInput();
             (nextButton as HTMLElement).click();
             await this.sleep(2000);
             return false; // Continue to next step, don't mark as complete
@@ -616,6 +666,12 @@ export class LinkedInHandler implements JobSiteHandler {
 
             // Update each question group
             for (const [question, elements] of questionGroups) {
+                const element = elements[0] as
+                    | HTMLInputElement
+                    | HTMLTextAreaElement
+                    | HTMLSelectElement;
+                if (!element || !element.value.trim()) continue;
+
                 const identifiers = elements
                     .flatMap((element) => [
                         element.id,
@@ -627,41 +683,47 @@ export class LinkedInHandler implements JobSiteHandler {
 
                 if (identifiers.length === 0) continue;
 
-                // Use the question as the key
-                savedFormInputs[question] = {
-                    value: (
-                        elements[0] as
-                            | HTMLInputElement
-                            | HTMLTextAreaElement
-                            | HTMLSelectElement
-                    ).value, // Save the first element's value
-                    type:
-                        elements[0] instanceof HTMLSelectElement
-                            ? "select"
-                            : elements[0] instanceof HTMLTextAreaElement
-                            ? "textarea"
-                            : (elements[0] as HTMLInputElement).type,
-                    identifiers,
-                    lastUsed: Date.now(),
-                    useCount: (savedFormInputs[question]?.useCount || 0) + 1,
-                };
+                // Only update if the value is different or the field doesn't exist
+                const currentValue = element.value.trim();
+                const existingInput = savedFormInputs[question];
 
-                const element = elements[0] as HTMLInputElement;
-                if (element) {
-                    console.log("Prepared form input for saving:", {
+                if (!existingInput || existingInput.value !== currentValue) {
+                    savedFormInputs[question] = {
+                        ...existingInput, // Preserve existing data if any
+                        value: currentValue,
+                        type:
+                            element instanceof HTMLSelectElement
+                                ? "select"
+                                : element instanceof HTMLTextAreaElement
+                                ? "textarea"
+                                : element.type,
+                        identifiers: [
+                            ...new Set([
+                                ...(existingInput?.identifiers || []),
+                                ...identifiers,
+                            ]),
+                        ], // Merge and deduplicate identifiers
+                        lastUsed: Date.now(),
+                        useCount: (existingInput?.useCount || 0) + 1,
+                    };
+
+                    console.log("Updated form input:", {
                         question,
-                        value: element.value,
+                        value: currentValue,
                         type: savedFormInputs[question].type,
-                        identifiers,
+                        identifiers: savedFormInputs[question].identifiers,
                     });
                 }
             }
 
             // Save all form inputs at once
             await chrome.storage.sync.set({ savedFormInputs });
-            console.log("Successfully saved all form inputs");
+            console.log(
+                "Successfully saved form inputs. Total fields:",
+                Object.keys(savedFormInputs).length
+            );
         } catch (error) {
-            console.error("Failed to save form input:", error);
+            console.error("Error saving form input:", error);
         }
     }
 
@@ -700,12 +762,13 @@ export class LinkedInHandler implements JobSiteHandler {
                 result.savedFormInputs || {};
 
             // Find a matching input
-            const matchingInput = Object.values(savedFormInputs).find((input) =>
-                input.identifiers.some((savedId) =>
-                    identifiers.some(
-                        (id) => savedId.toLowerCase() === id.toLowerCase()
+            const matchingInput = Object.values(savedFormInputs).find(
+                (input: FormInput) =>
+                    input.identifiers.some((savedId: string) =>
+                        identifiers.some(
+                            (id) => savedId.toLowerCase() === id.toLowerCase()
+                        )
                     )
-                )
             );
 
             if (!matchingInput) return false;
