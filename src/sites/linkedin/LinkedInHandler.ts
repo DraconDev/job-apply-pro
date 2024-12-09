@@ -542,7 +542,7 @@ export class LinkedInHandler implements JobSiteHandler {
 
     private async fillCurrentStep(): Promise<void> {
         console.log("Starting to fill current step");
-        const formInputs = document.querySelectorAll("input, select, textarea");
+        const formInputs = this.getVisibleFormElements();
         console.log(`Found ${formInputs.length} form inputs`);
 
         for (const input of formInputs) {
@@ -667,7 +667,7 @@ export class LinkedInHandler implements JobSiteHandler {
         );
     }
 
-    async findNextButton(): Promise<HTMLElement | null> {
+    private async findNextButton(): Promise<HTMLElement | null> {
         console.log("Searching for next button...");
         const nextButtons = Array.from(document.querySelectorAll("button"));
 
@@ -813,7 +813,12 @@ export class LinkedInHandler implements JobSiteHandler {
     }
 
     private getVisibleFormElements(): Element[] {
-        const allElements = document.querySelectorAll(
+        // First find the dialog element
+        const dialog = document.querySelector('[role="dialog"]');
+        if (!dialog) return [];
+
+        // Then find form elements within the dialog
+        const allElements = dialog.querySelectorAll(
             "input, select, textarea"
         );
         return Array.from(allElements).filter((element) => {
