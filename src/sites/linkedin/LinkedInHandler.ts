@@ -818,9 +818,7 @@ export class LinkedInHandler implements JobSiteHandler {
         if (!dialog) return [];
 
         // Then find form elements within the dialog
-        const allElements = dialog.querySelectorAll(
-            "input, select, textarea"
-        );
+        const allElements = dialog.querySelectorAll("input, select, textarea");
         return Array.from(allElements).filter((element) => {
             return this.isElementVisible(element);
         });
@@ -980,9 +978,11 @@ export class LinkedInHandler implements JobSiteHandler {
             this.isPaused = false;
         }
 
-        // First cancel any open dialogs/forms
-        await this.cancelApplication();
-        await this.midWait();
+        if (await this.findDismissButton()) {
+            // First cancel any open dialogs/forms
+            await this.cancelApplication();
+            await this.midWait();
+        }
 
         // Reset state and move to next job
         this.currentStepIndex = 0;
@@ -1005,16 +1005,39 @@ export class LinkedInHandler implements JobSiteHandler {
         }
     }
 
+    async findDismissButton(): Promise<Element | null> {
+        const dismissButtons = Array.from(
+            document.querySelectorAll("button")
+        ).filter(
+            (button) =>
+                button.textContent?.toLowerCase().includes("dismiss") ||
+                button
+                    .getAttribute("aria-label")
+                    ?.toLowerCase()
+                    .includes("dismiss")
+        );
+
+        if (dismissButtons.length > 0) {
+            return dismissButtons[0];
+        }
+        return null;
+    }
+
     async cancelApplication(): Promise<void> {
         console.log("Canceling application process...");
 
         // Look for and click the dismiss button
-        const dismissButtons = Array.from(document.querySelectorAll('button')).filter(
-            button => 
-                button.textContent?.toLowerCase().includes('dismiss') ||
-                button.getAttribute('aria-label')?.toLowerCase().includes('dismiss')
+        const dismissButtons = Array.from(
+            document.querySelectorAll("button")
+        ).filter(
+            (button) =>
+                button.textContent?.toLowerCase().includes("dismiss") ||
+                button
+                    .getAttribute("aria-label")
+                    ?.toLowerCase()
+                    .includes("dismiss")
         );
-        
+
         if (dismissButtons.length > 0) {
             console.log("Found dismiss button, clicking it...");
             dismissButtons[0].click();
@@ -1022,10 +1045,15 @@ export class LinkedInHandler implements JobSiteHandler {
         }
 
         // Look for and click the discard button
-        const discardButtons = Array.from(document.querySelectorAll('button')).filter(
-            button => 
-                button.textContent?.toLowerCase().includes('discard') ||
-                button.getAttribute('aria-label')?.toLowerCase().includes('discard')
+        const discardButtons = Array.from(
+            document.querySelectorAll("button")
+        ).filter(
+            (button) =>
+                button.textContent?.toLowerCase().includes("discard") ||
+                button
+                    .getAttribute("aria-label")
+                    ?.toLowerCase()
+                    .includes("discard")
         );
 
         if (discardButtons.length > 0) {
