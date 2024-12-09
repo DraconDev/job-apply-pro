@@ -85,7 +85,29 @@ export default defineContentScript({
             }
         };
 
-        root.render(<FloatingButton onToggle={handleAutoApplyToggle} />);
+        const handleSkip = async () => {
+            console.log("Skipping current application...");
+            await linkedInHandler.skipCurrentApplication();
+        };
+
+        const handleStop = async () => {
+            console.log("Stopping auto-apply...");
+            isAutoApplyEnabled = false;
+            linkedInHandler.setPause(true);
+            linkedInHandler.isApplying = false;
+            linkedInHandler.currentStepIndex = 0;
+            clearAutoApplyTimeout();
+            // Reset the job index to ensure fresh start next time
+            linkedInHandler.resetJobIndex();
+        };
+
+        root.render(
+            <FloatingButton
+                onToggle={handleAutoApplyToggle}
+                onSkip={handleSkip}
+                onStop={handleStop}
+            />
+        );
         console.log("Rendered FloatingButton component");
 
         // Listen for messages from the extension
@@ -140,9 +162,8 @@ export default defineContentScript({
                 isAutoApplyEnabled
             );
 
-            if (!isAutoApplyEnabled) {
-                console.log("Auto-apply is disabled, returning early");
-                linkedInHandler.setPause(true);
+            if (!isAutoApplyEnabled || linkedInHandler.isPaused) {
+                console.log("Auto-apply is disabled or paused");
                 clearAutoApplyTimeout();
                 return;
             }

@@ -3,11 +3,11 @@ import { JobDetails, JobSiteHandler } from "../../common/types";
 
 export class LinkedInHandler implements JobSiteHandler {
     name = "LinkedIn";
-    private isApplying = false;
-    private isPaused = false;
+    isApplying = false;
+    isPaused = false;
     private currentJobIndex = 0;
     private jobListings: HTMLElement[] = [];
-    private currentStepIndex = 0;
+    currentStepIndex = 0;
     private readonly MAX_STEPS = 10;
 
     setPause(paused: boolean): void {
@@ -101,28 +101,57 @@ export class LinkedInHandler implements JobSiteHandler {
         try {
             const result = await chrome.storage.sync.get(["jobsApplied"]);
             const currentCount = result.jobsApplied || 0;
+            const newCount = currentCount + 1;
             await chrome.storage.sync.set({
-                jobsApplied: currentCount + 1,
+                jobsApplied: newCount,
             });
-            console.log(
-                `Incremented jobs applied counter to ${currentCount + 1}`
-            );
+            console.log(`Incremented jobs applied counter to ${newCount}`);
+
+            // Also store the job details
+            const jobDetails = this.getJobDetails();
+            if (jobDetails) {
+                const applications = await chrome.storage.sync.get([
+                    "applications",
+                ]);
+                const currentApps = applications.applications || [];
+                currentApps.push({
+                    ...jobDetails,
+                    appliedAt: new Date().toISOString(),
+                });
+                await chrome.storage.sync.set({ applications: currentApps });
+            }
         } catch (error) {
-            console.error("Failed to increment jobs applied counter:", error);
+            console.error("Failed to update application data:", error);
         }
 
-        console.log("Pressed Escape key after submission");
-        await this.sleep(5000);
-        // Press escape to close any popovers/modals
-        document.dispatchEvent(
-            new KeyboardEvent("keydown", {
-                key: "Escape",
-                code: "Escape",
-            })
+        await this.longWait();
+        const doneButtons =
+            document.querySelectorAll<HTMLButtonElement>("button");
+        const doneButton = Array.from(doneButtons).find(
+            (button) =>
+                button.textContent?.toLowerCase().includes("done") ||
+                button.textContent?.toLowerCase().includes("finish")
         );
-        await this.sleep(5000);
+        if (doneButton) {
+            console.log("Found done button, clicking it");
+            doneButton.click();
+        } else {
+            console.log("No done button found");
+        }
 
+        await this.longWait();
+
+        // Reset for next job
+        this.currentStepIndex = 0;
         this.isApplying = false;
+
+        // Start next job application
+        console.log("Starting next job application...");
+        if (window.location.href.includes("/jobs/")) {
+            this.currentJobIndex++;
+            await this.autoApply();
+        }
+
         return true;
     }
 
@@ -309,40 +338,60 @@ export class LinkedInHandler implements JobSiteHandler {
         console.log("Loading job listings from search page");
         try {
             // Wait for the main content section to load
-            await this.sleep(3000); // Give the page more time to load
+            await this.sleep(3000);
 
-            // Find the main job list by structure - it's the only ul in the main content area
             const mainContent = document.querySelector("main");
             if (!mainContent) {
                 console.log("Main content area not found");
                 return false;
             }
 
-            // Find the first ul element in the main content
             const jobList = mainContent.querySelector("ul");
             if (!jobList) {
                 console.log("Job list (ul) not found in main content");
                 return false;
             }
 
-            // Get all direct li children that have "Easy Apply" button
-            const allJobItems = Array.from(jobList.children).filter(
-                (element) => {
-                    if (element.tagName.toLowerCase() !== "li") return false;
-                    const buttonText = element.textContent?.toLowerCase() || "";
-                    return buttonText.includes("easy apply");
+            let previousHeight = 0;
+            let sameHeightCount = 0;
+            const MAX_SAME_HEIGHT_ATTEMPTS = 3;
+
+            // Keep scrolling until we've hit the bottom
+            while (true) {
+                // Get all li elements
+                const items = Array.from(jobList.children).filter(
+                    (element) => element.tagName.toLowerCase() === "li"
+                ) as HTMLElement[];
+
+                this.jobListings = items;
+                console.log(`Found ${items.length} job items so far...`);
+
+                // Scroll to load more
+                window.scrollTo(0, document.body.scrollHeight);
+                await this.sleep(1000);
+
+                // Check if we've reached the bottom
+                const currentHeight = document.body.scrollHeight;
+                if (currentHeight === previousHeight) {
+                    sameHeightCount++;
+                    if (sameHeightCount >= MAX_SAME_HEIGHT_ATTEMPTS) {
+                        break;
+                    }
+                } else {
+                    sameHeightCount = 0;
                 }
-            ) as HTMLElement[];
+                previousHeight = currentHeight;
+            }
 
-            console.log(`Found ${allJobItems.length} Easy Apply job items`);
-
-            this.jobListings = allJobItems;
+            console.log(`Finished loading. Found total of ${this.jobListings.length} jobs`);
 
             if (this.jobListings.length === 0) {
-                console.log("No Easy Apply job listings found");
+                console.log("No job listings found");
                 return false;
             }
 
+            // Scroll back to top
+            window.scrollTo(0, 0);
             return true;
         } catch (error) {
             console.error("Error loading job listings:", error);
@@ -421,30 +470,115 @@ export class LinkedInHandler implements JobSiteHandler {
 
         for (const input of formInputs) {
             try {
-                console.log("Processing input:", {
-                    type: input.tagName,
-                    name: input instanceof HTMLInputElement ? input.name : "",
-                    id: input.id,
-                    visible: this.isElementVisible(input),
-                });
-
-                if (!this.isElementVisible(input)) {
-                    console.log("Skipping invisible input");
-                    continue;
-                }
-
-                if (input instanceof HTMLSelectElement) {
-                    await this.handleSelect(input);
-                } else if (input instanceof HTMLInputElement) {
-                    await this.handleInput(input);
-                } else if (input instanceof HTMLTextAreaElement) {
-                    await this.handleTextArea(input);
-                }
+                // Type assertion to HTMLElement
+                await this.saveFormInput(
+                    input as
+                        | HTMLInputElement
+                        | HTMLTextAreaElement
+                        | HTMLSelectElement
+                );
+                await this.fillFormInput(
+                    input as
+                        | HTMLInputElement
+                        | HTMLTextAreaElement
+                        | HTMLSelectElement
+                );
             } catch (error) {
                 console.error("Error handling input:", error);
             }
         }
         console.log("Finished filling current step");
+    }
+
+    async saveFormInput(
+        element: HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement
+    ) {
+        try {
+            // Get identifiers from the element
+            const identifiers = [
+                element.id,
+                element.name,
+                element.getAttribute("aria-label"),
+                element.getAttribute("placeholder"),
+            ].filter(Boolean) as string[];
+
+            if (identifiers.length === 0) return;
+
+            // Get element value and type
+            const value = element.value;
+            const type = element.tagName.toLowerCase();
+
+            // Create a unique key from identifiers
+            const key = identifiers.join("|");
+
+            // Get existing form inputs
+            const result = await chrome.storage.sync.get(["savedFormInputs"]);
+            const savedFormInputs: SavedFormInputs =
+                result.savedFormInputs || {};
+
+            // Update or create form input
+            savedFormInputs[key] = {
+                value,
+                type,
+                identifiers,
+                lastUsed: Date.now(),
+                useCount: (savedFormInputs[key]?.useCount || 0) + 1,
+            };
+
+            // Save back to storage
+            await chrome.storage.sync.set({ savedFormInputs });
+        } catch (error) {
+            console.error("Failed to save form input:", error);
+        }
+    }
+
+    async fillFormInput(
+        element: HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement
+    ): Promise<boolean> {
+        try {
+            // Get identifiers from the element
+            const identifiers = [
+                element.id,
+                element.name,
+                element.getAttribute("aria-label"),
+                element.getAttribute("placeholder"),
+            ].filter(Boolean) as string[];
+
+            if (identifiers.length === 0) return false;
+
+            // Get saved form inputs
+            const result = await chrome.storage.sync.get(["savedFormInputs"]);
+            const savedFormInputs: SavedFormInputs =
+                result.savedFormInputs || {};
+
+            // Find a matching input
+            const matchingInput = Object.values(savedFormInputs).find((input) =>
+                input.identifiers.some((savedId) =>
+                    identifiers.some(
+                        (id) => savedId.toLowerCase() === id.toLowerCase()
+                    )
+                )
+            );
+
+            if (!matchingInput) return false;
+
+            // Fill the value
+            if (
+                element instanceof HTMLInputElement ||
+                element instanceof HTMLTextAreaElement ||
+                element instanceof HTMLSelectElement
+            ) {
+                element.value = matchingInput.value;
+                element.dispatchEvent(new Event("input", { bubbles: true }));
+                element.dispatchEvent(new Event("change", { bubbles: true }));
+                return true;
+            }
+
+            return false;
+        } catch (error) {
+            console.error("Failed to fill form input:", error);
+            return false;
+        }
     }
 
     private isElementVisible(element: Element): boolean {
@@ -454,76 +588,6 @@ export class LinkedInHandler implements JobSiteHandler {
             style.visibility !== "hidden" &&
             style.opacity !== "0"
         );
-    }
-
-    private async handleInput(input: HTMLInputElement): Promise<void> {
-        const type = input.type.toLowerCase();
-        const name = input.name.toLowerCase();
-        console.log("Handling input:", { type, name });
-
-        switch (type) {
-            case "text":
-                if (name.includes("phone")) {
-                    input.value = "+1234567890"; // Replace with actual phone
-                    console.log("Filled phone number");
-                } else if (name.includes("name")) {
-                    input.value = "John Doe"; // Replace with actual name
-                    console.log("Filled name");
-                }
-                break;
-            case "email":
-                input.value = "email@example.com"; // Replace with actual email
-                console.log("Filled email");
-                break;
-            case "number":
-                if (name.includes("year")) {
-                    input.value = "3"; // Years of experience
-                    console.log("Filled years of experience");
-                }
-                break;
-            case "radio":
-                if (
-                    name.includes("yes") ||
-                    input.value.toLowerCase().includes("yes")
-                ) {
-                    input.checked = true;
-                    console.log("Selected 'yes' radio option");
-                }
-                break;
-        }
-
-        input.dispatchEvent(new Event("change", { bubbles: true }));
-    }
-
-    private async handleSelect(select: HTMLSelectElement): Promise<void> {
-        console.log("Handling select:", {
-            name: select.name,
-            options: select.options.length,
-        });
-
-        // Select the first non-empty option
-        const options = Array.from(select.options);
-        const validOption = options.find((opt) => opt.value && !opt.disabled);
-        if (validOption) {
-            select.value = validOption.value;
-            select.dispatchEvent(new Event("change", { bubbles: true }));
-            console.log("Selected option:", validOption.value);
-        } else {
-            console.log("No valid options found for select");
-        }
-    }
-
-    private async handleTextArea(textarea: HTMLTextAreaElement): Promise<void> {
-        console.log("Handling textarea:", {
-            name: textarea.name,
-            id: textarea.id,
-        });
-
-        // Add a generic response for text areas
-        textarea.value =
-            "I am highly interested in this position and believe my skills and experience make me a strong candidate.";
-        textarea.dispatchEvent(new Event("change", { bubbles: true }));
-        console.log("Filled textarea with generic response");
     }
 
     async findNextButton(): Promise<HTMLElement | null> {
@@ -552,14 +616,32 @@ export class LinkedInHandler implements JobSiteHandler {
         return nextButton || null;
     }
 
+    private async pressEscape() {
+        // Try different ways to send Escape key
+        const escapeEvent = new KeyboardEvent("keydown", {
+            key: "Escape",
+            code: "Escape",
+            keyCode: 27,
+            which: 27,
+            bubbles: true,
+            cancelable: true,
+        });
+
+        // Send to document
+        document.dispatchEvent(escapeEvent);
+        await this.sleep(500);
+
+        // Send to body
+        document.body.dispatchEvent(escapeEvent);
+        await this.sleep(500);
+    }
+
     private async closeModal(): Promise<void> {
         console.log("Attempting to close modal...");
 
         // First try pressing Escape
-        document.dispatchEvent(
-            new KeyboardEvent("keydown", { key: "Escape", code: "Escape" })
-        );
-        console.log("Pressed Escape key");
+        await this.pressEscape();
+        await this.sleep(1000);
 
         // Wait a bit for any confirmation dialog
         await this.sleep(1000);
@@ -622,6 +704,7 @@ export class LinkedInHandler implements JobSiteHandler {
             await chrome.storage.sync.set({
                 applicationAnswers: recentAnswers,
             });
+            console.log("Saved answer:", newAnswer);
         } catch (error) {
             console.error("Failed to save answer to sync storage:", error);
             // Fallback to local storage if sync fails
@@ -784,51 +867,49 @@ export class LinkedInHandler implements JobSiteHandler {
         }
     }
 
+    public async skipCurrentApplication() {
+        console.log("Skipping current application...");
+
+        // First cancel any open dialogs/forms
+        await this.cancelApplication();
+        await this.midWait();
+
+        // Reset state and move to next job
+        this.currentStepIndex = 0;
+        this.isApplying = false;
+        this.currentJobIndex++;
+
+        // If we're on the jobs page, start the next application
+        if (window.location.href.includes("/jobs/")) {
+            console.log("Starting next job application...");
+            await this.autoApply();
+        } else {
+            // If we're on a single job page, go back to the jobs list
+            console.log("Not on jobs page, navigating back...");
+            window.history.back();
+            await this.sleep(2000);
+        }
+    }
+
     private async cancelApplication(): Promise<void> {
         console.log("Canceling application process...");
 
-        // First try Escape key
-        document.dispatchEvent(
-            new KeyboardEvent("keydown", { key: "Escape", code: "Escape" })
-        );
-        console.log("Pressed Escape key");
+        // Try to close any open dialogs
+        await this.pressEscape();
         await this.sleep(1000);
 
-        // Look for any cancel/discard/close buttons
-        const possibleButtons = Array.from(document.querySelectorAll("button"));
-        console.log(`Found ${possibleButtons.length} buttons to check`);
-
-        for (const button of possibleButtons) {
-            const text = button.textContent?.toLowerCase() || "";
-            if (
-                text.includes("discard") ||
-                text.includes("cancel") ||
-                text.includes("close")
-            ) {
-                console.log(`Found button with text: ${text}, clicking it`);
-                (button as HTMLElement).click();
-                await this.sleep(500);
-            }
-        }
-
-        // // Try Escape key again
-        // document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", code: "Escape" }));
-        // await this.sleep(500);
-
-        // // Look for any close buttons with aria-label
-        // const closeButtons = document.querySelectorAll('[aria-label*="close"], [aria-label*="dismiss"]');
-        // for (const button of closeButtons) {
-        //     console.log('Found close button with aria-label, clicking it');
-        //     (button as HTMLElement).click();
-        //     await this.sleep(500);
-        // }
-
-        // // Final Escape key press
-        // document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
+        // Try again to ensure modals are closed
+        await this.pressEscape();
 
         this.isApplying = false;
         this.currentStepIndex = 0;
         console.log("Application canceled");
+        await this.midWait();
+    }
+
+    private midWait(): Promise<void> {
+        console.log("Starting mid wait ");
+        return this.sleep(5000);
     }
 
     private hasErrors(): boolean {
@@ -889,6 +970,11 @@ export class LinkedInHandler implements JobSiteHandler {
         return hasErrors;
     }
 
+    private async longWait(): Promise<void> {
+        console.log("Starting long wait ");
+        await this.sleep(10000);
+    }
+
     private async saveFormValues(): Promise<void> {
         console.log("Saving current form values");
         const formData: Record<string, string> = {};
@@ -942,4 +1028,14 @@ export class LinkedInHandler implements JobSiteHandler {
             console.error("Error saving form values:", error);
         }
     }
+}
+
+interface SavedFormInputs {
+    [key: string]: {
+        value: string;
+        type: string;
+        identifiers: string[];
+        lastUsed: number;
+        useCount: number;
+    };
 }

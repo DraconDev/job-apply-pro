@@ -1,26 +1,57 @@
-import React, { useState, useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import ApplicationMenu from "./ApplicationMenu";
 
 interface FloatingButtonProps {
     onToggle: (enabled: boolean) => Promise<boolean>;
+    onSkip?: () => Promise<void>;
+    onStop?: () => Promise<void>;
 }
 
-const FloatingButton: React.FC<FloatingButtonProps> = ({ onToggle }) => {
+const FloatingButton: React.FC<FloatingButtonProps> = ({
+    onToggle,
+    onSkip,
+    onStop,
+}) => {
     const [state, setState] = useState<"idle" | "running" | "paused">("idle");
     const [jobsApplied, setJobsApplied] = useState(0);
     const [isMenuOpen, setIsMenuOpen] = useState(false);
 
+    // Load and watch for changes in jobs applied
+    useEffect(() => {
+        const loadJobsApplied = async () => {
+            const result = await chrome.storage.sync.get(["jobsApplied"]);
+            setJobsApplied(result.jobsApplied || 0);
+        };
+
+        // Load initial value
+        loadJobsApplied();
+
+        // Watch for changes
+        const listener = (changes: {
+            [key: string]: chrome.storage.StorageChange;
+        }) => {
+            if (changes.jobsApplied) {
+                setJobsApplied(changes.jobsApplied.newValue || 0);
+            }
+        };
+
+        chrome.storage.sync.onChanged.addListener(listener);
+        return () => chrome.storage.sync.onChanged.removeListener(listener);
+    }, []);
+
     const handleToggle = async () => {
         try {
             let success = false;
-            
+
             switch (state) {
                 case "idle":
                     // Start
                     success = await onToggle(true);
                     if (success) {
                         setState("running");
-                        console.log("Started auto-apply, state changed to running");
+                        console.log(
+                            "Started auto-apply, state changed to running"
+                        );
                     } else {
                         console.log("Failed to start auto-apply");
                     }
@@ -30,7 +61,9 @@ const FloatingButton: React.FC<FloatingButtonProps> = ({ onToggle }) => {
                     success = await onToggle(false);
                     if (success) {
                         setState("paused");
-                        console.log("Paused auto-apply, state changed to paused");
+                        console.log(
+                            "Paused auto-apply, state changed to paused"
+                        );
                     }
                     break;
                 case "paused":
@@ -38,7 +71,9 @@ const FloatingButton: React.FC<FloatingButtonProps> = ({ onToggle }) => {
                     success = await onToggle(true);
                     if (success) {
                         setState("running");
-                        console.log("Resumed auto-apply, state changed to running");
+                        console.log(
+                            "Resumed auto-apply, state changed to running"
+                        );
                     }
                     break;
             }
@@ -50,8 +85,8 @@ const FloatingButton: React.FC<FloatingButtonProps> = ({ onToggle }) => {
 
     const buttonConfig = {
         idle: {
-            text: "Start Auto-Apply",
-            color: "bg-green-600 hover:bg-green-700",
+            text: "Start",
+            color: "bg-green-500 hover:bg-green-600",
             icon: (
                 <>
                     <path
@@ -70,8 +105,8 @@ const FloatingButton: React.FC<FloatingButtonProps> = ({ onToggle }) => {
             ),
         },
         running: {
-            text: "Click to Pause",
-            color: "bg-yellow-600 hover:bg-yellow-700",
+            text: "Pause",
+            color: "bg-yellow-500 hover:bg-yellow-600",
             icon: (
                 <path
                     strokeLinecap="round"
@@ -82,8 +117,8 @@ const FloatingButton: React.FC<FloatingButtonProps> = ({ onToggle }) => {
             ),
         },
         paused: {
-            text: "Click to Resume",
-            color: "bg-blue-600 hover:bg-blue-700",
+            text: "Resume",
+            color: "bg-blue-500 hover:bg-blue-600",
             icon: (
                 <path
                     strokeLinecap="round"
@@ -99,41 +134,109 @@ const FloatingButton: React.FC<FloatingButtonProps> = ({ onToggle }) => {
         <>
             <div className="fixed top-1/2 right-4 -translate-y-1/2 w-64 bg-gray-50 rounded-lg shadow-xl border-2 border-gray-300 p-4 z-[2147483647]">
                 <div className="flex relative flex-col space-y-4">
-                    {/* Title */}
-                    <div className="text-center">
-                        <h2 className="text-xl font-bold text-gray-900">
-                            Job Apply Pro
-                        </h2>
-                        <div className="mt-2 text-sm text-gray-600">
-                            Jobs Applied: {jobsApplied}
-                        </div>
-                    </div>
-
-                    {/* Main Button */}
-                    <div className="flex-grow">
+                    <div className="flex flex-col space-y-2 p-4 bg-white rounded-lg shadow-lg">
                         <button
-                            className={`w-full px-4 py-3 rounded-md transition-colors duration-150 flex items-center justify-center gap-2 text-white ${buttonConfig[state].color}`}
                             onClick={handleToggle}
+                            className={`w-full flex items-center justify-center px-4 py-2 rounded-lg text-white font-medium transition-colors ${buttonConfig[state].color}`}
                         >
                             <svg
-                                className="w-5 h-5"
+                                xmlns="http://www.w3.org/2000/svg"
+                                className="h-5 w-5 mr-2"
                                 fill="none"
-                                stroke="currentColor"
                                 viewBox="0 0 24 24"
+                                stroke="currentColor"
                             >
                                 {buttonConfig[state].icon}
                             </svg>
                             {buttonConfig[state].text}
                         </button>
-                    </div>
 
-                    {/* History Button */}
-                    <div>
+                        <div className="w-full flex flex-col space-y-2">
+                            <button
+                                onClick={async () => {
+                                    if (!onSkip || state !== "running") return;
+                                    try {
+                                        await onSkip();
+                                        console.log("Successfully skipped current application");
+                                    } catch (error) {
+                                        console.error("Failed to skip application:", error);
+                                    }
+                                }}
+                                disabled={state !== "running"}
+                                className={`w-full flex items-center justify-center px-4 py-2 rounded-lg text-white font-medium transition-colors ${
+                                    state === "running"
+                                        ? "bg-gray-500 hover:bg-gray-600"
+                                        : "bg-gray-300 cursor-not-allowed"
+                                }`}
+                            >
+                                <svg
+                                    xmlns="http://www.w3.org/2000/svg"
+                                    className="h-5 w-5 mr-2"
+                                    fill="none"
+                                    viewBox="0 0 24 24"
+                                    stroke="currentColor"
+                                >
+                                    <path
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                        strokeWidth={2}
+                                        d="M13 5l7 7-7 7M5 5l7 7-7 7"
+                                    />
+                                </svg>
+                                Skip
+                            </button>
+
+                            <button
+                                onClick={async () => {
+                                    if (!onStop || state !== "running") return;
+                                    try {
+                                        await onStop();
+                                        setState("idle");
+                                        console.log("Successfully stopped auto-apply");
+                                    } catch (error) {
+                                        console.error("Failed to stop auto-apply:", error);
+                                    }
+                                }}
+                                disabled={state !== "running"}
+                                className={`w-full flex items-center justify-center px-4 py-2 rounded-lg text-white font-medium transition-colors ${
+                                    state === "running"
+                                        ? "bg-red-500 hover:bg-red-600"
+                                        : "bg-red-300 cursor-not-allowed"
+                                }`}
+                            >
+                                <svg
+                                    xmlns="http://www.w3.org/2000/svg"
+                                    className="h-5 w-5 mr-2"
+                                    fill="none"
+                                    viewBox="0 0 24 24"
+                                    stroke="currentColor"
+                                >
+                                    <path
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                        strokeWidth={2}
+                                        d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                                    />
+                                    <path
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                        strokeWidth={2}
+                                        d="M9 10a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z"
+                                    />
+                                </svg>
+                                Stop
+                            </button>
+                        </div>
+
+                        <div className="text-sm text-gray-600 w-full text-center">
+                            Jobs Applied: {jobsApplied}
+                        </div>
+
                         <button
-                            className="w-full px-4 py-2 bg-gray-200 hover:bg-gray-300 rounded-md transition-colors duration-150 text-gray-700"
+                            className="w-full flex items-center justify-center px-4 py-2 bg-gray-200 hover:bg-gray-300 rounded-lg text-gray-700 font-medium transition-colors"
                             onClick={() => setIsMenuOpen(true)}
                         >
-                            View History
+                            History
                         </button>
                     </div>
 
@@ -157,6 +260,31 @@ const FloatingButton: React.FC<FloatingButtonProps> = ({ onToggle }) => {
                     </div>
                 </div>
             </div>
+
+            {isMenuOpen && (
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[2147483647]">
+                    <div className="bg-white p-6 rounded-lg shadow-xl w-96 flex flex-col space-y-4">
+                        <h2 className="text-xl font-bold mb-4">History</h2>
+                        <div className="flex flex-col space-y-2">
+                            <button
+                                onClick={() => {
+                                    window.open(chrome.runtime.getURL("form-info/index.html"), "_blank");
+                                    setIsMenuOpen(false);
+                                }}
+                                className="w-full flex items-center justify-center px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg font-medium transition-colors"
+                            >
+                                View Form Info
+                            </button>
+                            <button
+                                onClick={() => setIsMenuOpen(false)}
+                                className="w-full flex items-center justify-center px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-lg font-medium transition-colors"
+                            >
+                                Close
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             <ApplicationMenu
                 isOpen={isMenuOpen}
