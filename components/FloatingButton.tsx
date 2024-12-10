@@ -47,6 +47,9 @@ const FloatingButton: React.FC<FloatingButtonProps> = ({
                 const newState = message.isPaused ? "paused" : "running";
                 console.log("Setting button state to:", newState);
                 setState(newState);
+            } else if (message.type === "RESET_STATE") {
+                console.log("Resetting state to idle");
+                setState("idle");
             }
         };
 
@@ -127,6 +130,13 @@ const FloatingButton: React.FC<FloatingButtonProps> = ({
         } catch (error) {
             console.error("Error in handleToggle:", error);
             setState("idle");
+        }
+    };
+
+    const handleStop = async () => {
+        if (onStop) {
+            setState("idle"); // Set state to idle immediately
+            await onStop(); // Then handle the cleanup
         }
     };
 
@@ -237,7 +247,7 @@ const FloatingButton: React.FC<FloatingButtonProps> = ({
                         {onStop && (
                             <button
                                 className="flex items-center px-4 py-2 w-full font-medium text-white bg-red-600 rounded-lg transition-colors hover:bg-red-700"
-                                onClick={onStop}
+                                onClick={handleStop}
                             >
                                 <div className="flex-shrink-0 w-6 h-6">
                                     <svg

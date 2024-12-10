@@ -92,6 +92,7 @@ export default defineContentScript({
 
         const handleStop = async () => {
             console.log("Stopping auto-apply...");
+            await linkedInHandler.cancelApplication();
             isAutoApplyEnabled = false;
             linkedInHandler.setPause(true);
             linkedInHandler.isApplying = false;
@@ -99,6 +100,16 @@ export default defineContentScript({
             clearAutoApplyTimeout();
             // Reset the job index to ensure fresh start next time
             linkedInHandler.resetJobIndex();
+            
+            // First toggle off auto-apply
+            await handleAutoApplyToggle(false);
+            
+            // Then reset the state to idle
+            chrome.runtime.sendMessage({
+                type: "RESET_STATE"
+            }).catch(error => {
+                console.error("Failed to send state change message:", error);
+            });
         };
 
         root.render(

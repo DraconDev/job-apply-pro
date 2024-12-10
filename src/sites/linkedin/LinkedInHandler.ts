@@ -17,6 +17,13 @@ interface SavedFormInputs {
     };
 }
 
+interface JobHistoryEntry {
+    title: string;
+    link: string;
+    appliedAt: number;
+    platform: string;
+}
+
 export class LinkedInHandler implements JobSiteHandler {
     name = "LinkedIn";
     isApplying = false;
@@ -463,6 +470,7 @@ export class LinkedInHandler implements JobSiteHandler {
             const result = await this.processApplicationStep(stepCount);
             if (result) {
                 console.log("Application completed successfully");
+                await this.saveToHistory(jobInfo);
                 return true;
             }
 
@@ -1508,8 +1516,8 @@ export class LinkedInHandler implements JobSiteHandler {
         try {
             console.log("Looking for h1 with job title link...");
             const allH1s = Array.from(document.querySelectorAll("h1"));
-            const h1WithLink = allH1s.find(h1 => h1.querySelector('a'));
-            
+            const h1WithLink = allH1s.find((h1) => h1.querySelector("a"));
+
             if (!h1WithLink) {
                 throw new Error("Could not find h1 with link");
             }
@@ -1538,42 +1546,88 @@ export class LinkedInHandler implements JobSiteHandler {
             const result = await chrome.storage.sync.get({
                 titleFilterSettings: {
                     titles: [],
-                    excludeTitles: []
-                }
+                    excludeTitles: [],
+                },
             });
 
-            const { titles: allowedWords, excludeTitles: blockedWords } = result.titleFilterSettings;
-            console.log('Checking job title:', jobTitle, {
+            const { titles: allowedWords, excludeTitles: blockedWords } =
+                result.titleFilterSettings;
+            console.log("Checking job title:", jobTitle, {
                 allowedWords,
-                blockedWords
+                blockedWords,
             });
 
             // Convert everything to lowercase for consistent comparison
             const title = jobTitle.toLowerCase();
-            const allowedLower = allowedWords.map((word: string) => word.toLowerCase());
-            const blockedLower = blockedWords.map((word: string) => word.toLowerCase());
+            const allowedLower = allowedWords.map((word: string) =>
+                word.toLowerCase()
+            );
+            const blockedLower = blockedWords.map((word: string) =>
+                word.toLowerCase()
+            );
 
             // First check if the title contains any blocked words
-            const hasBlockedWord = blockedLower.some((word: string) => title.includes(word));
+            const hasBlockedWord = blockedLower.some((word: string) =>
+                title.includes(word)
+            );
             if (hasBlockedWord) {
-                console.log('Job title contains blocked word');
+                console.log("Job title contains blocked word");
                 return false;
             }
 
             // If there are no allowed words specified, accept all non-blocked titles
             if (allowedLower.length === 0) {
-                console.log('No allowed words specified, accepting title');
+                console.log("No allowed words specified, accepting title");
                 return true;
             }
 
             // Check if the title contains at least one allowed word
-            const hasAllowedWord = allowedLower.some((word: string) => title.includes(word));
-            console.log('Job title allowed:', hasAllowedWord);
+            const hasAllowedWord = allowedLower.some((word: string) =>
+                title.includes(word)
+            );
+            console.log("Job title allowed:", hasAllowedWord);
             return hasAllowedWord;
-
         } catch (error) {
-            console.error('Error checking job title filters:', error);
+            console.error("Error checking job title filters:", error);
             return false; // Fail safe: reject the job if we can't check filters
         }
+    }
+
+    private async saveToHistory(jobInfo: JobInfo): Promise<void> {
+        try {
+            console.log("Starting to save job to history:", jobInfo);
+
+            // Get existing history
+            const result = await chrome.storage.sync.get({ jobHistory: [] });
+            console.log("Current history:", result.jobHistory);
+            const history: JobHistoryEntry[] = result.jobHistory;
+
+            // Add new entry
+            const newEntry: JobHistoryEntry = {
+                title: jobInfo.title,
+                link: jobInfo.link,
+                appliedAt: Date.now(),
+                platform: this.name,
+            };
+            console.log("Created new history entry:", newEntry);
+
+            // Add to beginning of array and limit to last 100 entries
+            history.unshift(newEntry);
+            if (history.length > 100) {
+                history.length = 100;
+            }
+            console.log("Updated history array:", history);
+
+            // Save back to storage
+            await chrome.storage.sync.set({ jobHistory: history });
+            console.log("Successfully saved updated history to storage");
+        } catch (error) {
+            console.error("Error saving to job history:", error);
+        }
+    }
+
+    private reloadPage(): void {
+        console.log("Reloading page...");
+        window.location.reload();
     }
 }
