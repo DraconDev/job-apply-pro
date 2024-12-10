@@ -521,7 +521,7 @@ export class LinkedInHandler implements JobSiteHandler {
         console.log("Loading job listings from search page");
         try {
             // Wait for the main content section to load
-            await this.sleep(3000);
+            await this.sleep(1000);
 
             const mainContent = document.querySelector("main");
             if (!mainContent) {
@@ -537,7 +537,7 @@ export class LinkedInHandler implements JobSiteHandler {
 
             let previousHeight = 0;
             let sameHeightCount = 0;
-            const MAX_SAME_HEIGHT_ATTEMPTS = 3;
+            const MAX_SAME_HEIGHT_ATTEMPTS = 1;
 
             // Keep scrolling until we've hit the bottom
             while (true) {
@@ -1282,7 +1282,6 @@ export class LinkedInHandler implements JobSiteHandler {
         if (await this.findDismissButton()) {
             // First cancel any open dialogs/forms
             await this.cancelApplication();
-            await this.midWait();
         }
 
         // Reset state and move to next job
@@ -1368,7 +1367,6 @@ export class LinkedInHandler implements JobSiteHandler {
         this.isPaused = false;
         this.currentStepIndex = 0;
         console.log("Application canceled");
-        await this.midWait();
     }
 
     private midWait(): Promise<void> {
