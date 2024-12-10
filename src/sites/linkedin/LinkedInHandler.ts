@@ -394,7 +394,7 @@ export class LinkedInHandler implements JobSiteHandler {
             }
 
             // Wait for the job details to load
-            await this.sleep(1500);
+            await this.sleep(2500); // Increased wait time to ensure h1 loads
         }
 
         // Get job info for logging
@@ -1499,34 +1499,25 @@ export class LinkedInHandler implements JobSiteHandler {
 
     async getJobInfo(): Promise<JobInfo> {
         try {
-            console.log("Attempting to find link element in h1...");
-            const h1Element = await this.waitForElement("h1");
-            if (!h1Element) {
-                throw new Error("Could not find h1 element");
+            console.log("Looking for h1 with job title link...");
+            const allH1s = Array.from(document.querySelectorAll("h1"));
+            const h1WithLink = allH1s.find(h1 => h1.querySelector('a'));
+            
+            if (!h1WithLink) {
+                throw new Error("Could not find h1 with link");
             }
 
-            console.log("Attempting to find link element in h1...");
-            const linkElement = await h1Element.querySelector("a");
+            const linkElement = h1WithLink.querySelector("a");
             if (!linkElement) {
-                console.warn("No link element found in h1 element");
                 throw new Error("Could not find link in h1");
             }
-            console.log("Found link element:", {
-                href: linkElement.getAttribute("href"),
-                text: linkElement.textContent,
-            });
 
             const jobInfo = {
-                title: linkElement.textContent?.trim() || "",
+                title: (linkElement.textContent?.trim() || "").toLowerCase(),
                 link: linkElement.getAttribute("href") || "",
             };
 
-            console.log("Extracted job info:", {
-                title: jobInfo.title,
-                link: jobInfo.link,
-                titleLength: jobInfo.title.length,
-                linkLength: jobInfo.link.length,
-            });
+            console.log("Found job info:", jobInfo);
             return jobInfo;
         } catch (error) {
             console.error("Error getting job info:", error);
