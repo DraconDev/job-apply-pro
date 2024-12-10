@@ -1720,43 +1720,72 @@ export class LinkedInHandler implements JobSiteHandler {
     }
 
     private async goToNextJobsPage(): Promise<boolean> {
-        console.log("Attempting to go to next page of jobs...");
+        console.log("=== Starting goToNextJobsPage ===");
 
         // Find the next page button
         const paginationButtons = Array.from(
-            document.querySelectorAll('button[aria-label*="Page"]')
+            document.querySelectorAll('button[aria-label*="Page "]')
         );
-        const nextPageButton = paginationButtons.find(
-            (button) =>
-                button
-                    .getAttribute("aria-label")
-                    ?.toLowerCase()
-                    .includes("next") ||
-                button.textContent?.toLowerCase().includes("next")
-        );
+        console.log(`Found ${paginationButtons.length} pagination buttons`);
 
-        if (!nextPageButton || nextPageButton.hasAttribute("disabled")) {
-            console.log("No more pages of jobs available");
+        // Log all pagination buttons for debugging
+        paginationButtons.forEach((button, index) => {
+            console.log("Pagination button:", {
+                index,
+                ariaLabel: button.getAttribute("aria-label"),
+                text: button.textContent?.trim(),
+                disabled: button.hasAttribute("disabled"),
+                current: button.getAttribute("aria-current") === "true",
+            });
+        });
+
+        // Find the current page button and get the next one
+        const currentPageIndex = paginationButtons.findIndex(
+            (button) => button.getAttribute("aria-current") === "true"
+        );
+        console.log("Current page index:", currentPageIndex);
+
+        if (currentPageIndex === -1) {
+            console.log("Could not find current page button");
             return false;
         }
 
-        console.log("Found next page button, clicking...");
+        const nextPageButton = paginationButtons[currentPageIndex + 1];
+        console.log("Next page button found:", {
+            exists: !!nextPageButton,
+            disabled: nextPageButton?.hasAttribute("disabled"),
+            ariaLabel: nextPageButton?.getAttribute("aria-label"),
+            text: nextPageButton?.textContent?.trim(),
+        });
+
+        if (!nextPageButton || nextPageButton.hasAttribute("disabled")) {
+            console.log("No more pages of jobs available - ending pagination");
+            return false;
+        }
+
+        console.log("Clicking next page button...");
         (nextPageButton as HTMLElement).click();
 
         // Wait for new page to load
-        await this.sleep(2000);
+        console.log("Waiting for page to load...");
+        await this.sleep(15000);
 
         // Reset job index for new page
         this.currentJobIndex = 0;
+        console.log("Reset job index to 0 for new page");
 
         // Load new job listings
+        console.log("Loading job listings for new page...");
         const loaded = await this.loadJobListings();
         if (!loaded) {
-            console.log("Failed to load jobs on new page");
+            console.error("Failed to load jobs on new page");
             return false;
         }
 
-        console.log(`Loaded ${this.jobListings.length} jobs from new page`);
+        console.log("Successfully loaded new page:", {
+            jobCount: this.jobListings.length,
+            currentIndex: this.currentJobIndex,
+        });
         return true;
     }
 }
