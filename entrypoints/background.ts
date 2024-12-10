@@ -8,10 +8,11 @@ export default defineBackground(() => {
         console.log("Background received message:", message);
         
         // Handle different message types
-        switch (message.type) {
+        switch (message.action) {
             case "START_AUTO_APPLY":
             case "STOP_AUTO_APPLY":
             case "GET_JOB_DETAILS":
+            case "skipToLastJob":
                 // Forward message to active tab
                 if (sender.tab?.id) {
                     chrome.tabs.sendMessage(sender.tab.id, message)

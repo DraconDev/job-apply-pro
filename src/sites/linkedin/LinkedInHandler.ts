@@ -379,8 +379,27 @@ export class LinkedInHandler implements JobSiteHandler {
             const selected = await this.selectNextJob();
             if (!selected) {
                 console.log("Failed to select next job");
-                this.isApplying = false;
-                return false;
+                
+                // If we're at the last job in the list, try to go to next page
+                if (this.isLastJobInList()) {
+                    console.log("At last job in list, attempting to go to next page...");
+                    const nextPageSuccess = await this.goToNextJobsPage();
+                    if (!nextPageSuccess) {
+                        console.log("No more pages available");
+                        this.isApplying = false;
+                        return false;
+                    }
+                    // Try selecting first job on new page
+                    const selectedOnNewPage = await this.selectNextJob();
+                    if (!selectedOnNewPage) {
+                        console.log("Failed to select job on new page");
+                        this.isApplying = false;
+                        return false;
+                    }
+                } else {
+                    this.isApplying = false;
+                    return false;
+                }
             }
 
             // Wait for the job details to load
@@ -1329,42 +1348,41 @@ export class LinkedInHandler implements JobSiteHandler {
                     `Looking for next/submit button for step ${stepCount}...`
                 );
                 const nextBtn = await this.findNextButton();
-                if (!nextBtn) {
+
+                if (this.isPaused) {
+                    console.log("Application paused after finding next button");
+                    return;
+                }
+
+                if (nextBtn) {
                     console.log(
-                        `No next button found on step ${stepCount}, ending application`
+                        "Found next button for step ${stepCount}, clicking..."
                     );
-                    this.isApplying = false;
-                    this.currentStepIndex = 0;
-                    return;
-                }
+                    // Save form values before clicking next
+                    await this.saveFormValues();
+                    nextBtn.click();
+                    console.log(`Clicked next button for step ${stepCount}`);
 
-                console.log(
-                    `Found next button for step ${stepCount}, clicking...`
-                );
-                // Save form values before clicking next
-                await this.saveFormValues();
-                nextBtn.click();
-                console.log(`Clicked next button for step ${stepCount}`);
+                    // Add a check for potential error messages
+                    await this.sleep(500);
 
-                // Add a check for potential error messages
-                await this.sleep(500);
+                    // Check pause state after sleep
+                    if (this.isPaused) {
+                        console.log(`Auto-apply paused during step ${stepCount}`);
+                        return;
+                    }
 
-                // Check pause state after sleep
-                if (this.isPaused) {
-                    console.log(`Auto-apply paused during step ${stepCount}`);
-                    return;
-                }
+                    // Fill current step
+                    console.log(
+                        `Starting to fill out fields in step ${stepCount}...`
+                    );
+                    await this.fillCurrentStep();
+                    console.log(`Completed filling fields in step ${stepCount}`);
 
-                // Fill current step
-                console.log(
-                    `Starting to fill out fields in step ${stepCount}...`
-                );
-                await this.fillCurrentStep();
-                console.log(`Completed filling fields in step ${stepCount}`);
-
-                if (this.isPaused) {
-                    console.log(`Auto-apply paused after step ${stepCount}`);
-                    return;
+                    if (this.isPaused) {
+                        console.log(`Auto-apply paused after step ${stepCount}`);
+                        return;
+                    }
                 }
             }
         } catch (error) {
@@ -1787,5 +1805,29 @@ export class LinkedInHandler implements JobSiteHandler {
             currentIndex: this.currentJobIndex,
         });
         return true;
+    }
+
+    async skipToLastJob(): Promise<void> {
+        console.log("=== Starting skipToLastJob ===");
+        
+        // Load current page's job listings
+        const loaded = await this.loadJobListings();
+        if (!loaded) {
+            console.log("Failed to load job listings");
+            return;
+        }
+
+        // Set index to last job
+        this.currentJobIndex = this.jobListings.length - 1;
+        console.log(`Set current job index to ${this.currentJobIndex}`);
+
+        // Select the last job
+        const selected = await this.selectNextJob();
+        if (!selected) {
+            console.log("Failed to select last job");
+            return;
+        }
+
+        console.log("Successfully skipped to last job");
     }
 }
