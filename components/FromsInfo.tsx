@@ -3,13 +3,6 @@ export default function FormsInfo() {
         chrome.tabs.create({ url: chrome.runtime.getURL("form-info.html") });
     };
 
-    const skipToLastJob = async () => {
-        const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-        if (tab.id) {
-            await chrome.tabs.sendMessage(tab.id, { action: "skipToLastJob" });
-        }
-    };
-
     return (
         <div className="space-y-3">
             {/* Edit Form Information Button */}
@@ -31,27 +24,6 @@ export default function FormsInfo() {
                     />
                 </svg>
                 <span className="text-base">Edit Form Information</span>
-            </button>
-
-            {/* Skip to Last Job Button (Test Only) */}
-            <button
-                onClick={skipToLastJob}
-                className="w-full px-4 py-2.5 bg-gray-600 hover:bg-gray-700 text-white rounded-lg text-sm font-medium transition-colors flex items-center justify-center shadow-sm"
-            >
-                <svg
-                    className="w-4 h-4 mr-2"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                >
-                    <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M13 5l7 7-7 7M5 5l7 7-7 7"
-                    />
-                </svg>
-                <span className="text-base">Skip to Last Job (Test)</span>
             </button>
         </div>
     );

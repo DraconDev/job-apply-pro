@@ -66,11 +66,11 @@ export default defineContentScript({
                     }
 
                     isAutoApplyEnabled = true;
-                    linkedInHandler.setPause(false);
+                    linkedInHandler.unpause();
                     handleAutoApply().catch((error) => {
                         console.error("Error in auto-apply process:", error);
                         isAutoApplyEnabled = false;
-                        linkedInHandler.setPause(true);
+                        linkedInHandler.pause();
                         clearAutoApplyTimeout();
                     });
 
@@ -80,14 +80,14 @@ export default defineContentScript({
                         "Not on a valid LinkedIn jobs page. Please navigate to a LinkedIn job posting or search page."
                     );
                     isAutoApplyEnabled = false;
-                    linkedInHandler.setPause(true);
+                    linkedInHandler.pause();
                     clearAutoApplyTimeout();
                     return false;
                 }
             } else {
                 console.log("Pausing auto-apply");
                 isAutoApplyEnabled = false;
-                linkedInHandler.setPause(true);
+                linkedInHandler.pause();
                 clearAutoApplyTimeout();
                 return true;
             }
@@ -102,7 +102,7 @@ export default defineContentScript({
             console.log("Stopping auto-apply...");
             await linkedInHandler.cancelApplication();
             isAutoApplyEnabled = false;
-            linkedInHandler.setPause(true);
+            linkedInHandler.pause();
             linkedInHandler.isApplying = false;
             linkedInHandler.currentStepIndex = 0;
             clearAutoApplyTimeout();
@@ -123,6 +123,24 @@ export default defineContentScript({
                         error
                     );
                 });
+        };
+
+        const handleTogglePause = () => {
+            if (!linkedInHandler) return;
+            linkedInHandler.togglePause();
+        };
+
+        const handleStartAutoApply = async () => {
+            if (!linkedInHandler) return;
+
+            // Start the auto-apply process
+            linkedInHandler.unpause();
+            const success = await linkedInHandler.autoApply();
+
+            if (!success) {
+                console.log("Auto-apply process failed or was stopped");
+                linkedInHandler.pause();
+            }
         };
 
         root.render(
@@ -206,7 +224,7 @@ export default defineContentScript({
                     console.log(
                         "Auto-apply was disabled during job application, stopping"
                     );
-                    linkedInHandler.setPause(true);
+                    linkedInHandler.pause();
                     return;
                 }
 
@@ -226,7 +244,7 @@ export default defineContentScript({
                     console.error("Error stack:", error.stack);
                 }
                 isAutoApplyEnabled = false;
-                linkedInHandler.setPause(true);
+                linkedInHandler.pause();
                 clearAutoApplyTimeout();
             }
         }

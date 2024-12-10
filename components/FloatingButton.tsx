@@ -268,7 +268,6 @@ const FloatingButton: React.FC<FloatingButtonProps> = ({
                                 </span>
                             </button>
                         )}
-
                         <button
                             onClick={() =>
                                 window.open(

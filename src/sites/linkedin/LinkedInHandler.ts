@@ -35,30 +35,45 @@ export class LinkedInHandler implements JobSiteHandler {
     private readonly MAX_STEPS = 10;
     private currentJobInfo: JobInfo | null = null;
 
-    setPause(paused: boolean): void {
-        this.isPaused = paused;
-        console.log(this.isPaused ? "Auto-apply paused" : "Auto-apply resumed");
+    pause(): void {
+        console.log("Pausing auto-apply process...");
+        this.isPaused = true;
 
-        // Broadcast pause state change
+        // Notify UI to update button state to show "Resume"
         chrome.runtime.sendMessage({
             type: "PAUSE_STATE_CHANGED",
-            isPaused: this.isPaused,
+            isPaused: true,
+        });
+    }
+
+    unpause(): void {
+        console.log("Resuming auto-apply process...");
+        this.isPaused = false;
+
+        // Notify UI to update button state to show "Pause"
+        chrome.runtime.sendMessage({
+            type: "PAUSE_STATE_CHANGED",
+            isPaused: false,
         });
 
-        // If we're unpausing, continue the application process
-        if (!this.isPaused && this.isApplying) {
+        // Continue application if we were in the middle of one
+        if (this.isApplying) {
             console.log("Continuing application from current step...");
             this.continueApplication();
         }
     }
 
     togglePause(): void {
-        this.setPause(!this.isPaused);
+        if (this.isPaused) {
+            this.unpause();
+        } else {
+            this.pause();
+        }
     }
 
     async resumeApplication(): Promise<boolean> {
         if (this.isPaused) {
-            this.setPause(false);
+            this.unpause();
             return this.autoApply();
         }
         return false;
@@ -379,10 +394,12 @@ export class LinkedInHandler implements JobSiteHandler {
             const selected = await this.selectNextJob();
             if (!selected) {
                 console.log("Failed to select next job");
-                
+
                 // If we're at the last job in the list, try to go to next page
                 if (this.isLastJobInList()) {
-                    console.log("At last job in list, attempting to go to next page...");
+                    console.log(
+                        "At last job in list, attempting to go to next page..."
+                    );
                     const nextPageSuccess = await this.goToNextJobsPage();
                     if (!nextPageSuccess) {
                         console.log("No more pages available");
@@ -1368,7 +1385,9 @@ export class LinkedInHandler implements JobSiteHandler {
 
                     // Check pause state after sleep
                     if (this.isPaused) {
-                        console.log(`Auto-apply paused during step ${stepCount}`);
+                        console.log(
+                            `Auto-apply paused during step ${stepCount}`
+                        );
                         return;
                     }
 
@@ -1377,10 +1396,14 @@ export class LinkedInHandler implements JobSiteHandler {
                         `Starting to fill out fields in step ${stepCount}...`
                     );
                     await this.fillCurrentStep();
-                    console.log(`Completed filling fields in step ${stepCount}`);
+                    console.log(
+                        `Completed filling fields in step ${stepCount}`
+                    );
 
                     if (this.isPaused) {
-                        console.log(`Auto-apply paused after step ${stepCount}`);
+                        console.log(
+                            `Auto-apply paused after step ${stepCount}`
+                        );
                         return;
                     }
                 }
@@ -1809,7 +1832,7 @@ export class LinkedInHandler implements JobSiteHandler {
 
     async skipToLastJob(): Promise<void> {
         console.log("=== Starting skipToLastJob ===");
-        
+
         // Load current page's job listings
         const loaded = await this.loadJobListings();
         if (!loaded) {
