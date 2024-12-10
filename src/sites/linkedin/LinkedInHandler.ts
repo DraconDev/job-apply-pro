@@ -397,15 +397,19 @@ export class LinkedInHandler implements JobSiteHandler {
             await this.sleep(1500);
         }
 
+        // Get job info for logging
+        const jobInfo = await this.getJobInfo();
+        console.log("Selected job:", jobInfo.title);
+
         // Check if already applied to current job
         if (this.isJobAlreadyApplied()) {
-            console.log("Skipping job - already applied");
+            console.log("Skipping already applied job:", jobInfo.title);
             this.isApplying = false;
             return false;
         }
 
         // Click the apply button
-        console.log("Looking for Easy Apply button...");
+        console.log("Looking for Easy Apply button for job:", jobInfo.title);
 
         // Find any button that has "job" in its class name and "easy apply" in text
         const buttons = Array.from(document.querySelectorAll("button"));
@@ -1495,26 +1499,38 @@ export class LinkedInHandler implements JobSiteHandler {
 
     async getJobInfo(): Promise<JobInfo> {
         try {
-            const h1Element = await this.waitForElement('h1');
+            console.log("Attempting to find link element in h1...");
+            const h1Element = await this.waitForElement("h1");
             if (!h1Element) {
-                throw new Error('Could not find h1 element');
+                throw new Error("Could not find h1 element");
             }
 
-            const linkElement = await h1Element.querySelector('a');
+            console.log("Attempting to find link element in h1...");
+            const linkElement = await h1Element.querySelector("a");
             if (!linkElement) {
-                throw new Error('Could not find link in h1');
+                console.warn("No link element found in h1 element");
+                throw new Error("Could not find link in h1");
             }
+            console.log("Found link element:", {
+                href: linkElement.getAttribute("href"),
+                text: linkElement.textContent,
+            });
 
             const jobInfo = {
-                title: linkElement.textContent?.trim() || '',
-                link: linkElement.getAttribute('href') || ''
+                title: linkElement.textContent?.trim() || "",
+                link: linkElement.getAttribute("href") || "",
             };
 
-            console.log('Found job:', jobInfo);
+            console.log("Extracted job info:", {
+                title: jobInfo.title,
+                link: jobInfo.link,
+                titleLength: jobInfo.title.length,
+                linkLength: jobInfo.link.length,
+            });
             return jobInfo;
         } catch (error) {
-            console.error('Error getting job info:', error);
-            return { title: '', link: '' };
+            console.error("Error getting job info:", error);
+            return { title: "", link: "" };
         }
     }
 }
