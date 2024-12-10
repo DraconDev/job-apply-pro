@@ -1287,7 +1287,6 @@ export class LinkedInHandler implements JobSiteHandler {
         // Reset state and move to next job
         this.currentStepIndex = 0;
         this.isApplying = false;
-        this.currentJobIndex++;
 
         // If we're on the jobs page, start the next application
         if (window.location.href.includes("/jobs/")) {
