@@ -2,6 +2,21 @@ import { FormInput } from "@/src/types";
 import { ApplicationAnswer } from "@/types";
 import { JobDetails, JobSiteHandler } from "../../common/types";
 
+interface JobInfo {
+    title: string;
+    link: string;
+}
+
+interface SavedFormInputs {
+    [key: string]: {
+        value: string;
+        type: string;
+        identifiers: string[];
+        lastUsed: number;
+        useCount: number;
+    };
+}
+
 export class LinkedInHandler implements JobSiteHandler {
     name = "LinkedIn";
     isApplying = false;
@@ -15,8 +30,24 @@ export class LinkedInHandler implements JobSiteHandler {
         this.isPaused = paused;
         console.log(this.isPaused ? "Auto-apply paused" : "Auto-apply resumed");
 
+        // Broadcast pause state change
+        chrome.runtime
+            .sendMessage({
+                type: "PAUSE_STATE_CHANGED",
+                isPaused: this.isPaused,
+            })
+            .catch((error) => {
+                console.error("Failed to broadcast pause state:", error);
+            });
+
+        // Log the message being sent for debugging
+        console.log("Sending pause state message:", {
+            type: "PAUSE_STATE_CHANGED",
+            isPaused: this.isPaused,
+        });
+
         // If we're unpausing, continue the application process
-        if (!paused && this.isApplying) {
+        if (!this.isPaused && this.isApplying) {
             console.log("Continuing application from current step...");
             this.continueApplication();
         }
@@ -1461,14 +1492,29 @@ export class LinkedInHandler implements JobSiteHandler {
 
         return alertMessages;
     }
-}
 
-interface SavedFormInputs {
-    [key: string]: {
-        value: string;
-        type: string;
-        identifiers: string[];
-        lastUsed: number;
-        useCount: number;
-    };
+    async getJobInfo(): Promise<JobInfo> {
+        try {
+            const h1Element = await this.waitForElement('h1');
+            if (!h1Element) {
+                throw new Error('Could not find h1 element');
+            }
+
+            const linkElement = await h1Element.querySelector('a');
+            if (!linkElement) {
+                throw new Error('Could not find link in h1');
+            }
+
+            const jobInfo = {
+                title: linkElement.textContent?.trim() || '',
+                link: linkElement.getAttribute('href') || ''
+            };
+
+            console.log('Found job:', jobInfo);
+            return jobInfo;
+        } catch (error) {
+            console.error('Error getting job info:', error);
+            return { title: '', link: '' };
+        }
+    }
 }

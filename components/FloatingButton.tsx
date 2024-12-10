@@ -38,16 +38,35 @@ const FloatingButton: React.FC<FloatingButtonProps> = ({
     }, []);
 
     useEffect(() => {
+        const messageListener = (
+            message: any,
+            sender: chrome.runtime.MessageSender
+        ) => {
+            if (message.type === "PAUSE_STATE_CHANGED") {
+                console.log("Received pause state change:", message.isPaused);
+                const newState = message.isPaused ? "paused" : "running";
+                console.log("Setting button state to:", newState);
+                setState(newState);
+            }
+        };
+
+        chrome.runtime.onMessage.addListener(messageListener);
+        return () => chrome.runtime.onMessage.removeListener(messageListener);
+    }, []);
+
+    useEffect(() => {
         let animationFrame: number;
         let startTime: number | undefined;
 
         const animate = (timestamp: number) => {
             if (!startTime) startTime = timestamp;
             const elapsed = timestamp - startTime;
-            const duration = 2000; // 2 second cycle
+            const duration = 1000; // 1 second cycle for faster movement
 
-            // Calculate progress from 0 to 70 (100 - 30 to account for bar width)
-            let progress = (elapsed % duration) / duration * 70;
+            // Use sine wave for smooth back and forth motion
+            // Math.sin output is -1 to 1, we map it to 0-70 range
+            const progress =
+                (Math.sin((elapsed * Math.PI) / duration) + 1) * 35;
 
             setProgress(progress);
 
@@ -167,109 +186,80 @@ const FloatingButton: React.FC<FloatingButtonProps> = ({
                             </div>
                         )}
                         <button
-                            className={`w-full flex items-center justify-center px-4 py-2 rounded-lg text-white font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 ${buttonConfig[state].color}`}
+                            className={`w-full flex items-center px-4 py-2 rounded-lg text-white font-medium transition-colors ${buttonConfig[state].color}`}
                             onClick={handleToggle}
                         >
-                            <svg
-                                xmlns="http://www.w3.org/2000/svg"
-                                className="mr-2 w-5 h-5"
-                                fill="none"
-                                viewBox="0 0 24 24"
-                                stroke="currentColor"
-                            >
-                                {buttonConfig[state].icon}
-                            </svg>
-                            {buttonConfig[state].text}
+                            <div className="flex-shrink-0 w-6 h-6">
+                                <svg
+                                    xmlns="http://www.w3.org/2000/svg"
+                                    className="w-full h-full"
+                                    fill="none"
+                                    viewBox="0 0 24 24"
+                                    stroke="currentColor"
+                                >
+                                    {buttonConfig[state].icon}
+                                </svg>
+                            </div>
+                            <span className="flex-grow text-center">
+                                {buttonConfig[state].text}
+                            </span>
                         </button>
                     </div>
 
                     <div className="flex flex-col space-y-2 w-full">
-                        <button
-                            onClick={async () => {
-                                if (
-                                    !onSkip ||
-                                    (state !== "running" && state !== "paused")
-                                )
-                                    return;
-                                try {
-                                    await onSkip();
-                                    console.log(
-                                        "Successfully skipped current application"
-                                    );
-                                } catch (error) {
-                                    console.error(
-                                        "Failed to skip application:",
-                                        error
-                                    );
-                                }
-                            }}
-                            disabled={state !== "running" && state !== "paused"}
-                            className={`w-full flex items-center justify-center px-4 py-2 rounded-lg font-medium transition-colors ${
-                                state === "running" || state === "paused"
-                                    ? "bg-gray-600 hover:bg-gray-700 text-white"
-                                    : "bg-gray-100 text-gray-400 cursor-not-allowed"
-                            }`}
-                        >
-                            <svg
-                                xmlns="http://www.w3.org/2000/svg"
-                                className="mr-2 w-5 h-5"
-                                fill="none"
-                                viewBox="0 0 24 24"
-                                stroke="currentColor"
+                        {onSkip && (
+                            <button
+                                className="flex items-center px-4 py-2 w-full font-medium text-white bg-gray-600 rounded-lg transition-colors hover:bg-gray-700"
+                                onClick={onSkip}
                             >
-                                <path
-                                    strokeLinecap="round"
-                                    strokeLinejoin="round"
-                                    strokeWidth={2}
-                                    d="M13 5l7 7-7 7M5 5l7 7-7 7"
-                                />
-                            </svg>
-                            Skip
-                        </button>
+                                <div className="flex-shrink-0 w-6 h-6">
+                                    <svg
+                                        xmlns="http://www.w3.org/2000/svg"
+                                        className="w-full h-full"
+                                        fill="none"
+                                        viewBox="0 0 24 24"
+                                        stroke="currentColor"
+                                    >
+                                        <path
+                                            strokeLinecap="round"
+                                            strokeLinejoin="round"
+                                            strokeWidth={2}
+                                            d="M13 5l7 7-7 7M5 5l7 7-7 7"
+                                        />
+                                    </svg>
+                                </div>
+                                <span className="flex-grow text-center">
+                                    Skip
+                                </span>
+                            </button>
+                        )}
 
-                        <button
-                            onClick={async () => {
-                                if (
-                                    !onStop ||
-                                    (state !== "running" && state !== "paused")
-                                )
-                                    return;
-                                try {
-                                    await onStop();
-                                    setState("idle");
-                                    console.log(
-                                        "Successfully stopped auto-apply"
-                                    );
-                                } catch (error) {
-                                    console.error(
-                                        "Failed to stop auto-apply:",
-                                        error
-                                    );
-                                }
-                            }}
-                            disabled={state !== "running" && state !== "paused"}
-                            className={`w-full flex items-center justify-center px-4 py-2 rounded-lg font-medium transition-colors ${
-                                state === "running" || state === "paused"
-                                    ? "bg-red-600 hover:bg-red-700 text-white"
-                                    : "bg-gray-100 text-gray-400 cursor-not-allowed"
-                            }`}
-                        >
-                            <svg
-                                xmlns="http://www.w3.org/2000/svg"
-                                className="mr-2 w-5 h-5"
-                                fill="none"
-                                viewBox="0 0 24 24"
-                                stroke="currentColor"
+                        {onStop && (
+                            <button
+                                className="flex items-center px-4 py-2 w-full font-medium text-white bg-red-600 rounded-lg transition-colors hover:bg-red-700"
+                                onClick={onStop}
                             >
-                                <path
-                                    strokeLinecap="round"
-                                    strokeLinejoin="round"
-                                    strokeWidth={2}
-                                    d="M6 18L18 6M6 6l12 12"
-                                />
-                            </svg>
-                            Stop
-                        </button>
+                                <div className="flex-shrink-0 w-6 h-6">
+                                    <svg
+                                        xmlns="http://www.w3.org/2000/svg"
+                                        className="w-full h-full"
+                                        fill="none"
+                                        viewBox="0 0 24 24"
+                                        stroke="currentColor"
+                                    >
+                                        <path
+                                            strokeLinecap="round"
+                                            strokeLinejoin="round"
+                                            strokeWidth={2}
+                                            d="M6 18L18 6M6 6l12 12"
+                                        />
+                                    </svg>
+                                </div>
+                                <span className="flex-grow text-center">
+                                    Stop
+                                </span>
+                            </button>
+                        )}
 
                         <button
                             onClick={() =>
@@ -278,22 +268,27 @@ const FloatingButton: React.FC<FloatingButtonProps> = ({
                                     "_blank"
                                 )
                             }
-                            className="flex justify-center items-center px-4 py-2 w-full font-medium text-white bg-purple-500 rounded-lg transition-colors hover:bg-purple-600"
+                            className="flex items-center px-4 py-2 w-full font-medium text-white bg-purple-600 rounded-lg transition-colors hover:bg-purple-700"
                         >
-                            <svg
-                                className="mr-2 w-5 h-5"
-                                fill="none"
-                                stroke="currentColor"
-                                viewBox="0 0 24 24"
-                            >
-                                <path
-                                    strokeLinecap="round"
-                                    strokeLinejoin="round"
-                                    strokeWidth={2}
-                                    d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"
-                                />
-                            </svg>
-                            Donate
+                            <div className="flex-shrink-0 w-6 h-6">
+                                <svg
+                                    xmlns="http://www.w3.org/2000/svg"
+                                    className="w-full h-full"
+                                    fill="none"
+                                    viewBox="0 0 24 24"
+                                    stroke="currentColor"
+                                >
+                                    <path
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                        strokeWidth={2}
+                                        d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"
+                                    />
+                                </svg>
+                            </div>
+                            <span className="flex-grow text-center">
+                                Donate
+                            </span>
                         </button>
                     </div>
 
