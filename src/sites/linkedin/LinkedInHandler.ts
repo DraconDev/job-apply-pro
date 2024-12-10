@@ -14,6 +14,7 @@ interface SavedFormInputs {
         identifiers: string[];
         lastUsed: number;
         useCount: number;
+        options?: { value: string; text: string }[];
     };
 }
 
@@ -39,17 +40,7 @@ export class LinkedInHandler implements JobSiteHandler {
         console.log(this.isPaused ? "Auto-apply paused" : "Auto-apply resumed");
 
         // Broadcast pause state change
-        chrome.runtime
-            .sendMessage({
-                type: "PAUSE_STATE_CHANGED",
-                isPaused: this.isPaused,
-            })
-            .catch((error) => {
-                console.error("Failed to broadcast pause state:", error);
-            });
-
-        // Log the message being sent for debugging
-        console.log("Sending pause state message:", {
+        chrome.runtime.sendMessage({
             type: "PAUSE_STATE_CHANGED",
             isPaused: this.isPaused,
         });
@@ -154,18 +145,11 @@ export class LinkedInHandler implements JobSiteHandler {
         }
 
         // Wait longer for submission to complete
-        await this.sleep(8000); // Increased wait time
+        await this.sleep(1000); // Reduced wait time from 8s to 3s
 
         if (this.isPaused) {
             console.log("Application paused before storage update");
             return false;
-        }
-
-        // Save job to history using stored job info
-        if (this.currentJobInfo) {
-            await this.saveToHistory(this.currentJobInfo);
-        } else {
-            console.error("No job info available to save to history");
         }
 
         // Update jobs applied counter in sync storage
@@ -177,20 +161,6 @@ export class LinkedInHandler implements JobSiteHandler {
                 jobsApplied: newCount,
             });
             console.log(`Incremented jobs applied counter to ${newCount}`);
-
-            // Also store the job details
-            const jobDetails = this.getJobDetails();
-            if (jobDetails) {
-                const applications = await chrome.storage.sync.get([
-                    "applications",
-                ]);
-                const currentApps = applications.applications || [];
-                currentApps.push({
-                    ...jobDetails,
-                    appliedAt: new Date().toISOString(),
-                });
-                await chrome.storage.sync.set({ applications: currentApps });
-            }
         } catch (error) {
             console.error("Failed to update application data:", error);
         }
@@ -668,8 +638,8 @@ export class LinkedInHandler implements JobSiteHandler {
                     element instanceof HTMLTextAreaElement ||
                     element instanceof HTMLSelectElement
                 ) {
-                    await this.saveFormInput();
                     await this.fillFormInput(element);
+                    await this.saveFormInput();
                 }
             } catch (error) {
                 console.error("Error processing form element:", error);
@@ -792,15 +762,29 @@ export class LinkedInHandler implements JobSiteHandler {
                 // Only update if the value is different or the field doesn't exist
                 const existingInput = savedFormInputs[label];
                 if (!existingInput || existingInput.value !== value) {
+                    const inputType =
+                        inputElement instanceof HTMLSelectElement
+                            ? "select"
+                            : inputElement instanceof HTMLTextAreaElement
+                            ? "textarea"
+                            : inputElement.type;
+
+                    // Get options for select elements
+                    let options;
+                    if (inputElement instanceof HTMLSelectElement) {
+                        options = Array.from(inputElement.options).map(
+                            (option) => ({
+                                value: option.value,
+                                text:
+                                    option.textContent?.trim() || option.value,
+                            })
+                        );
+                    }
+
                     savedFormInputs[label] = {
                         ...existingInput,
                         value,
-                        type:
-                            inputElement instanceof HTMLSelectElement
-                                ? "select"
-                                : inputElement instanceof HTMLTextAreaElement
-                                ? "textarea"
-                                : inputElement.type,
+                        type: inputType,
                         identifiers: [
                             ...new Set([
                                 ...(existingInput?.identifiers || []),
@@ -809,6 +793,7 @@ export class LinkedInHandler implements JobSiteHandler {
                         ],
                         lastUsed: Date.now(),
                         useCount: (existingInput?.useCount || 0) + 1,
+                        ...(options && { options }), // Only include options if it's a select element
                     };
 
                     console.log("Updated form input:", {
@@ -816,6 +801,7 @@ export class LinkedInHandler implements JobSiteHandler {
                         value,
                         type: savedFormInputs[label].type,
                         identifiers: savedFormInputs[label].identifiers,
+                        ...(options && { options }),
                     });
                 }
             }
@@ -905,18 +891,38 @@ export class LinkedInHandler implements JobSiteHandler {
             if (!matchingInput) return false;
 
             // Fill the value
-            if (
+            if (element instanceof HTMLSelectElement) {
+                // For select elements, first verify if the saved value is still a valid option
+                const isValidOption = Array.from(element.options).some(
+                    (option) => option.value === matchingInput.value
+                );
+
+                if (isValidOption) {
+                    element.value = matchingInput.value;
+                } else if (matchingInput.options) {
+                    // If the saved value is not valid but we have saved options,
+                    // try to find a matching option by text
+                    const savedOption = matchingInput.options.find((opt) =>
+                        Array.from(element.options).some(
+                            (currentOpt) =>
+                                currentOpt.textContent?.trim().toLowerCase() ===
+                                opt.text.toLowerCase()
+                        )
+                    );
+                    if (savedOption) {
+                        element.value = savedOption.value;
+                    }
+                }
+            } else if (
                 element instanceof HTMLInputElement ||
-                element instanceof HTMLTextAreaElement ||
-                element instanceof HTMLSelectElement
+                element instanceof HTMLTextAreaElement
             ) {
                 element.value = matchingInput.value;
-                element.dispatchEvent(new Event("input", { bubbles: true }));
-                element.dispatchEvent(new Event("change", { bubbles: true }));
-                return true;
             }
 
-            return false;
+            element.dispatchEvent(new Event("input", { bubbles: true }));
+            element.dispatchEvent(new Event("change", { bubbles: true }));
+            return true;
         } catch (error) {
             console.error("Failed to fill form input:", error);
             return false;
@@ -1194,7 +1200,7 @@ export class LinkedInHandler implements JobSiteHandler {
                     `Processing step ${stepCount}/${this.MAX_STEPS}...`
                 );
                 console.log(`Current step index: ${this.currentStepIndex}`);
-                await this.sleep(2000);
+                await this.sleep(1000);
 
                 // Check pause state after sleep
                 if (this.isPaused) {
@@ -1534,7 +1540,8 @@ export class LinkedInHandler implements JobSiteHandler {
 
             const jobInfo = {
                 title: (linkElement.textContent?.trim() || "").toLowerCase(),
-                link: linkElement.href || linkElement.getAttribute("href") || "",
+                link:
+                    linkElement.href || linkElement.getAttribute("href") || "",
             };
 
             console.log("Found job info:", jobInfo);

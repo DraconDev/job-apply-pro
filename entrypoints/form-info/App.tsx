@@ -217,18 +217,58 @@ export default function App() {
                                                         </span>
                                                     </div>
                                                     <div className="flex gap-2">
-                                                        <input
-                                                            type="text"
-                                                            value={input.value}
-                                                            onChange={(e) =>
-                                                                handleValueChange(
-                                                                    key,
-                                                                    e.target
-                                                                        .value
-                                                                )
-                                                            }
-                                                            className="flex-1 px-3 py-2 rounded border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                                                        />
+                                                        {input.type ===
+                                                            "select" &&
+                                                        input.options ? (
+                                                            <select
+                                                                value={
+                                                                    input.value
+                                                                }
+                                                                onChange={(e) =>
+                                                                    handleValueChange(
+                                                                        key,
+                                                                        e.target
+                                                                            .value
+                                                                    )
+                                                                }
+                                                                className="flex-1 px-3 py-2 rounded border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                                            >
+                                                                {input.options.map(
+                                                                    (
+                                                                        option,
+                                                                        idx
+                                                                    ) => (
+                                                                        <option
+                                                                            key={
+                                                                                idx
+                                                                            }
+                                                                            value={
+                                                                                option.value
+                                                                            }
+                                                                        >
+                                                                            {
+                                                                                option.text
+                                                                            }
+                                                                        </option>
+                                                                    )
+                                                                )}
+                                                            </select>
+                                                        ) : (
+                                                            <input
+                                                                type="text"
+                                                                value={
+                                                                    input.value
+                                                                }
+                                                                onChange={(e) =>
+                                                                    handleValueChange(
+                                                                        key,
+                                                                        e.target
+                                                                            .value
+                                                                    )
+                                                                }
+                                                                className="flex-1 px-3 py-2 rounded border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                                            />
+                                                        )}
                                                         <button
                                                             onClick={() =>
                                                                 handleDelete(

@@ -44,9 +44,7 @@ const FloatingButton: React.FC<FloatingButtonProps> = ({
         ) => {
             if (message.type === "PAUSE_STATE_CHANGED") {
                 console.log("Received pause state change:", message.isPaused);
-                const newState = message.isPaused ? "paused" : "running";
-                console.log("Setting button state to:", newState);
-                setState(newState);
+                setState(message.isPaused ? "paused" : "running");
             } else if (message.type === "RESET_STATE") {
                 console.log("Resetting state to idle");
                 setState("idle");

@@ -40,6 +40,14 @@ export default defineContentScript({
         // Create React root and render floating button
         const root = createRoot(container);
 
+        // Check initial pause state and set button state accordingly
+        if (linkedInHandler.isPaused) {
+            chrome.runtime.sendMessage({
+                type: "PAUSE_STATE_CHANGED",
+                isPaused: true,
+            });
+        }
+
         const handleAutoApplyToggle = async (enabled: boolean) => {
             console.log("Auto-apply toggled:", enabled);
 
