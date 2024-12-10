@@ -63,14 +63,6 @@ export class LinkedInHandler implements JobSiteHandler {
         }
     }
 
-    togglePause(): void {
-        if (this.isPaused) {
-            this.unpause();
-        } else {
-            this.pause();
-        }
-    }
-
     async resumeApplication(): Promise<boolean> {
         if (this.isPaused) {
             this.unpause();
