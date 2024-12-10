@@ -32,6 +32,7 @@ export class LinkedInHandler implements JobSiteHandler {
     private jobListings: HTMLElement[] = [];
     currentStepIndex = 0;
     private readonly MAX_STEPS = 10;
+    private currentJobInfo: JobInfo | null = null;
 
     setPause(paused: boolean): void {
         this.isPaused = paused;
@@ -153,12 +154,18 @@ export class LinkedInHandler implements JobSiteHandler {
         }
 
         // Wait longer for submission to complete
-        await this.sleep(8000); // Increased to 10 seconds
-        console.log("Finished waiting after submission");
+        await this.sleep(8000); // Increased wait time
 
         if (this.isPaused) {
             console.log("Application paused before storage update");
             return false;
+        }
+
+        // Save job to history using stored job info
+        if (this.currentJobInfo) {
+            await this.saveToHistory(this.currentJobInfo);
+        } else {
+            console.error("No job info available to save to history");
         }
 
         // Update jobs applied counter in sync storage
@@ -406,6 +413,7 @@ export class LinkedInHandler implements JobSiteHandler {
 
         // Get job info for logging
         const jobInfo = await this.getJobInfo();
+        this.currentJobInfo = jobInfo; // Store job info for later use
         console.log("Selected job:", jobInfo.title);
 
         // Check if already applied to current job
@@ -1526,7 +1534,7 @@ export class LinkedInHandler implements JobSiteHandler {
 
             const jobInfo = {
                 title: (linkElement.textContent?.trim() || "").toLowerCase(),
-                link: linkElement.getAttribute("href") || "",
+                link: linkElement.href || linkElement.getAttribute("href") || "",
             };
 
             console.log("Found job info:", jobInfo);
