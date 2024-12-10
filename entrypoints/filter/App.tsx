@@ -7,20 +7,8 @@ interface FilterSettings {
 }
 
 const defaultSettings: FilterSettings = {
-    titles: [
-        "software engineer",
-        "frontend engineer",
-        "backend engineer",
-        "full stack engineer",
-    ],
-    excludeTitles: [
-        "senior",
-        "staff",
-        "principal",
-        "lead",
-        "manager",
-        "director",
-    ],
+    titles: [],
+    excludeTitles: [],
 };
 
 export default function App() {
@@ -75,19 +63,27 @@ export default function App() {
     return (
         <div className="min-h-screen bg-gray-50">
             <div className="max-w-[600px] mx-auto pt-8">
-                <div className="bg-white shadow-sm rounded-lg overflow-hidden">
+                <div className="overflow-hidden bg-white rounded-lg shadow-sm">
                     <div className="py-4 mb-4 bg-white border-b">
                         <h1 className="text-xl font-bold text-center text-gray-800 md:text-2xl">
                             Job Title Filters
                         </h1>
+                        <p className="mt-2 text-sm text-center text-gray-600">
+                            Filter job titles by including or excluding specific words or phrases.
+                            The filter is case-insensitive and matches partial words.
+                        </p>
                     </div>
 
                     <div className="px-6 pb-6 space-y-6">
                         {/* Include Titles */}
                         <div className="space-y-3">
                             <h2 className="text-lg font-semibold text-gray-800">
-                                Include Job Titles
+                                Required Words/Phrases
                             </h2>
+                            <p className="mb-4 text-sm text-gray-600">
+                                Job titles must contain at least one of these words or phrases.
+                                Leave empty to match any job title (except excluded ones).
+                            </p>
                             <div className="space-y-3">
                                 <div className="flex gap-2">
                                     <input
@@ -115,7 +111,10 @@ export default function App() {
                                             {title}
                                             <button
                                                 onClick={() =>
-                                                    removeTitle(title, "include")
+                                                    removeTitle(
+                                                        title,
+                                                        "include"
+                                                    )
                                                 }
                                                 className="text-blue-600 hover:text-blue-800"
                                             >
@@ -130,8 +129,12 @@ export default function App() {
                         {/* Exclude Titles */}
                         <div className="space-y-3">
                             <h2 className="text-lg font-semibold text-gray-800">
-                                Exclude Job Titles
+                                Excluded Words/Phrases
                             </h2>
+                            <p className="mb-4 text-sm text-gray-600">
+                                Jobs will be skipped if their titles contain any of these words or phrases.
+                                For example, "senior" will match "Senior Engineer" and "Technical Senior Lead".
+                            </p>
                             <div className="space-y-3">
                                 <div className="flex gap-2">
                                     <input
@@ -159,7 +162,10 @@ export default function App() {
                                             {title}
                                             <button
                                                 onClick={() =>
-                                                    removeTitle(title, "exclude")
+                                                    removeTitle(
+                                                        title,
+                                                        "exclude"
+                                                    )
                                                 }
                                                 className="text-red-600 hover:text-red-800"
                                             >

@@ -408,6 +408,13 @@ export class LinkedInHandler implements JobSiteHandler {
             return false;
         }
 
+        // Check if job title is allowed
+        if (!(await this.isJobTitleAllowed(jobInfo.title))) {
+            console.log("Skipping job due to title filter:", jobInfo.title);
+            this.isApplying = false;
+            return false;
+        }
+
         // Click the apply button
         console.log("Looking for Easy Apply button for job:", jobInfo.title);
 
@@ -1522,6 +1529,51 @@ export class LinkedInHandler implements JobSiteHandler {
         } catch (error) {
             console.error("Error getting job info:", error);
             return { title: "", link: "" };
+        }
+    }
+
+    private async isJobTitleAllowed(jobTitle: string): Promise<boolean> {
+        try {
+            // Get filters from storage using the same keys as the filter page
+            const result = await chrome.storage.sync.get({
+                titleFilterSettings: {
+                    titles: [],
+                    excludeTitles: []
+                }
+            });
+
+            const { titles: allowedWords, excludeTitles: blockedWords } = result.titleFilterSettings;
+            console.log('Checking job title:', jobTitle, {
+                allowedWords,
+                blockedWords
+            });
+
+            // Convert everything to lowercase for consistent comparison
+            const title = jobTitle.toLowerCase();
+            const allowedLower = allowedWords.map((word: string) => word.toLowerCase());
+            const blockedLower = blockedWords.map((word: string) => word.toLowerCase());
+
+            // First check if the title contains any blocked words
+            const hasBlockedWord = blockedLower.some((word: string) => title.includes(word));
+            if (hasBlockedWord) {
+                console.log('Job title contains blocked word');
+                return false;
+            }
+
+            // If there are no allowed words specified, accept all non-blocked titles
+            if (allowedLower.length === 0) {
+                console.log('No allowed words specified, accepting title');
+                return true;
+            }
+
+            // Check if the title contains at least one allowed word
+            const hasAllowedWord = allowedLower.some((word: string) => title.includes(word));
+            console.log('Job title allowed:', hasAllowedWord);
+            return hasAllowedWord;
+
+        } catch (error) {
+            console.error('Error checking job title filters:', error);
+            return false; // Fail safe: reject the job if we can't check filters
         }
     }
 }
