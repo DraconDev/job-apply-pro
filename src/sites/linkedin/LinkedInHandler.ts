@@ -240,12 +240,8 @@ export class LinkedInHandler implements JobSiteHandler {
 
         console.log(`Processing step ${stepCount}/${this.MAX_STEPS}...`);
 
-        if (this.isPaused) {
-            console.log("Application paused during step processing");
-            return false;
-        }
-
-        this.saveFormInput();
+        // Save current form state before checking alerts
+        await this.saveFormInput();
 
         // Check for any alerts before proceeding
         const alerts = await this.checkForAlerts();
@@ -287,11 +283,21 @@ export class LinkedInHandler implements JobSiteHandler {
             // Wait for either timeout or manual unpause
             await timeoutPromise;
 
-            // Check if we should continue or cancel
+            // Try to fill fields from sync store after pause
+            console.log(
+                "Attempting to fill fields from sync store after pause"
+            );
+            await this.fillFormInput();
+
+            // Save any new field values that might have been manually entered
+            console.log("Saving any manually entered field values");
+            await this.saveFormInput();
+
+            // Check if alerts are still present
             const updatedAlerts = await this.checkForAlerts();
             if (updatedAlerts.length > 0) {
                 console.log(
-                    "Alerts still present after pause, canceling application:",
+                    "Alerts still present after pause and fill attempt, skipping application:",
                     updatedAlerts
                 );
                 await this.skipCurrentApplication();
@@ -445,7 +451,9 @@ export class LinkedInHandler implements JobSiteHandler {
             }
 
             this.currentStepIndex = stepCount;
-            const result = await this.processApplicationStep(stepCount);
+            const result = await this.processApplicationStep(
+                this.currentStepIndex
+            );
             if (result) {
                 console.log("Application completed successfully");
                 await this.saveToHistory(jobInfo);
@@ -638,7 +646,8 @@ export class LinkedInHandler implements JobSiteHandler {
                     element instanceof HTMLTextAreaElement ||
                     element instanceof HTMLSelectElement
                 ) {
-                    await this.fillFormInput(element);
+                    await this.fillFormInput();
+                    await this.sleep(1000);
                     await this.saveFormInput();
                 }
             } catch (error) {
@@ -650,43 +659,28 @@ export class LinkedInHandler implements JobSiteHandler {
 
     async saveFormInput() {
         try {
-            // Skip if we're on a resume page
-            // if (
-            //     document.body.textContent
-            //         ?.toLowerCase()
-            //         .includes("upload resume")
-            // ) {
-            //     console.log("Skipping form input save on upload resume page");
-            //     return;
-            // }
+            console.log("=== Starting saveFormInput ===");
 
-            // Find divs that contain both label and input elements
-            const dialog = document.querySelector('[role="dialog"]');
-            if (!dialog) {
-                console.log("No dialog found");
-                return;
-            }
-
-            // Find divs that contain both label and input elements
-            const formDivs = Array.from(dialog.querySelectorAll("div")).filter(
-                (div) => {
-                    const hasLabel = div.querySelector("label") !== null;
-                    const hasInput =
-                        div.querySelector("input, select, textarea") !== null;
-                    return hasLabel && hasInput;
-                }
-            );
-
-            console.log(`Found ${formDivs.length} form divs with label+input`);
+            // Find dialog and form divs using the new method
+            const result = this.findFormDivs();
+            if (!result) return;
+            const { formDivs, dialog } = result;
 
             // Combine and deduplicate form elements
             const allFormElements = new Set([...formDivs]);
             console.log(`Total unique form elements: ${allFormElements.size}`);
 
             // Get all saved form inputs once
-            const result = await chrome.storage.sync.get(["savedFormInputs"]);
+            const result2 = await chrome.storage.sync.get(["savedFormInputs"]);
             const savedFormInputs: SavedFormInputs =
-                result.savedFormInputs || {};
+                result2.savedFormInputs || {};
+            console.log(
+                "Current saved form inputs:",
+                Object.keys(savedFormInputs).length
+            );
+
+            let processedCount = 0;
+            let skippedCount = 0;
 
             // Process each form element
             for (const element of allFormElements) {
@@ -694,14 +688,20 @@ export class LinkedInHandler implements JobSiteHandler {
                 const inputElement = element.querySelector(
                     "input, select, textarea"
                 );
-                if (!inputElement || !this.isElementVisible(inputElement))
-                    continue;
 
-                // Try to find label in this order:
-                // 1. Associated label element (using 'for' attribute)
-                // 2. Label element within the div
-                // 3. Any element with text that's not the input
-                let label: string | undefined;
+                if (!inputElement) {
+                    console.log("No input element found in div");
+                    skippedCount++;
+                    continue;
+                }
+
+                if (!this.isElementVisible(inputElement)) {
+                    console.log("Input element not visible");
+                    skippedCount++;
+                    continue;
+                }
+
+                // Try to find label
                 const labelElement =
                     (inputElement.id &&
                         document.querySelector(
@@ -717,6 +717,8 @@ export class LinkedInHandler implements JobSiteHandler {
 
                 // Clean up duplicated label text
                 const rawLabel = labelElement?.textContent?.trim();
+                let label: string | undefined;
+
                 if (rawLabel) {
                     // Split the text in half
                     const parts = [
@@ -731,26 +733,34 @@ export class LinkedInHandler implements JobSiteHandler {
                 console.log("Processing form component:", {
                     label,
                     inputType: inputElement.tagName.toLowerCase(),
-                    inputValue: (
-                        inputElement as
-                            | HTMLInputElement
-                            | HTMLTextAreaElement
-                            | HTMLSelectElement
-                    ).value,
+                    inputId: inputElement.id,
+                    inputName: (inputElement as HTMLInputElement).name,
+                    isVisible: this.isElementVisible(inputElement),
+                    value: (inputElement as HTMLInputElement).value?.slice(
+                        0,
+                        20
+                    ),
                 });
 
+                if (!label) {
+                    console.log("Skipping - no label found");
+                    skippedCount++;
+                    continue;
+                }
+
                 if (
-                    !label ||
                     !(
                         inputElement instanceof HTMLInputElement ||
                         inputElement instanceof HTMLTextAreaElement ||
                         inputElement instanceof HTMLSelectElement
                     )
-                )
+                ) {
+                    console.log("Skipping - invalid input type");
+                    skippedCount++;
                     continue;
+                }
 
                 const value = inputElement.value.trim();
-                if (!value) continue;
 
                 const identifiers = [
                     inputElement.id,
@@ -793,28 +803,92 @@ export class LinkedInHandler implements JobSiteHandler {
                         ],
                         lastUsed: Date.now(),
                         useCount: (existingInput?.useCount || 0) + 1,
-                        ...(options && { options }), // Only include options if it's a select element
+                        ...(options && { options }),
                     };
+                    processedCount++;
 
                     console.log("Updated form input:", {
                         label,
-                        value,
+                        value:
+                            value.slice(0, 20) +
+                            (value.length > 20 ? "..." : ""),
                         type: savedFormInputs[label].type,
                         identifiers: savedFormInputs[label].identifiers,
                         ...(options && { options }),
                     });
+                } else {
+                    console.log("Skipping - value unchanged:", {
+                        label,
+                        value: value.slice(0, 20),
+                    });
+                    skippedCount++;
                 }
             }
 
             // Save all form inputs at once
             await chrome.storage.sync.set({ savedFormInputs });
+            console.log("=== Form Save Summary ===");
+            console.log(`Total fields processed: ${processedCount}`);
+            console.log(`Total fields skipped: ${skippedCount}`);
             console.log(
-                "Successfully saved form inputs. Total fields:",
-                Object.keys(savedFormInputs).length
+                `Total fields in storage: ${
+                    Object.keys(savedFormInputs).length
+                }`
             );
+            console.log("========================");
         } catch (error) {
             console.error("Error saving form input:", error);
         }
+    }
+
+    private findFormDivs(): { formDivs: Element[]; dialog: Element } | null {
+        // Find divs that contain both label and input elements
+        const dialog = document.querySelector('[role="dialog"]');
+        console.log("Dialog element found:", !!dialog);
+
+        if (!dialog) {
+            console.log("No dialog found, checking document body:", {
+                bodyContent: document.body.textContent?.slice(0, 100) + "...",
+                dialogCount:
+                    document.querySelectorAll('[role="dialog"]').length,
+                visibleInputs: document.querySelectorAll(
+                    'input:not([type="hidden"]), select, textarea'
+                ).length,
+            });
+            return null;
+        }
+
+        // Find divs that contain both label and input elements
+        const allDivs = dialog.querySelectorAll("div");
+        console.log(`Total divs found in dialog: ${allDivs.length}`);
+
+        const formDivs = Array.from(allDivs).filter((div) => {
+            const hasLabel = div.querySelector("label") !== null;
+            const hasInput =
+                div.querySelector("input, select, textarea") !== null;
+            const isVisible = this.isElementVisible(div);
+
+            if (hasLabel || hasInput) {
+                console.log("Potential form div:", {
+                    hasLabel,
+                    hasInput,
+                    isVisible,
+                    labelText: div.querySelector("label")?.textContent?.trim(),
+                    inputType: div.querySelector("input, select, textarea")
+                        ?.tagName,
+                    inputValue: (
+                        div.querySelector(
+                            "input, select, textarea"
+                        ) as HTMLInputElement
+                    )?.value?.slice(0, 20),
+                });
+            }
+
+            return hasLabel && hasInput;
+        });
+
+        console.log(`Found ${formDivs.length} form divs with label+input`);
+        return { formDivs, dialog };
     }
 
     private getQuestionLabel(element: Element): string {
@@ -859,70 +933,89 @@ export class LinkedInHandler implements JobSiteHandler {
         return fallbackLabel;
     }
 
-    async fillFormInput(
-        element: HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement
-    ): Promise<boolean> {
+    async fillFormInput(): Promise<boolean> {
         try {
-            // Get identifiers from the element
-            const identifiers = [
-                element.id,
-                (element as HTMLInputElement).name,
-                element.getAttribute("aria-label"),
-                element.getAttribute("placeholder"),
-            ].filter(Boolean) as string[];
+            // Find all form elements in dialog
+            const result = this.findFormDivs();
+            if (!result) return false;
+            const { formDivs } = result;
 
-            if (identifiers.length === 0) return false;
+            let success = false;
+            for (const div of formDivs) {
+                const element = div.querySelector("input, select, textarea") as
+                    | HTMLInputElement
+                    | HTMLTextAreaElement
+                    | HTMLSelectElement;
 
-            // Get saved form inputs
-            const result = await chrome.storage.sync.get(["savedFormInputs"]);
-            const savedFormInputs: SavedFormInputs =
-                result.savedFormInputs || {};
+                if (!element || !this.isElementVisible(element)) continue;
 
-            // Find a matching input
-            const matchingInput = Object.values(savedFormInputs).find(
-                (input: FormInput) =>
-                    input.identifiers.some((savedId: string) =>
-                        identifiers.some(
-                            (id) => savedId.toLowerCase() === id.toLowerCase()
+                // Get identifiers from the element
+                const identifiers = [
+                    element.id,
+                    (element as HTMLInputElement).name,
+                    element.getAttribute("aria-label"),
+                    element.getAttribute("placeholder"),
+                ].filter(Boolean) as string[];
+
+                if (identifiers.length === 0) continue;
+
+                // Get saved form inputs
+                const result = await chrome.storage.sync.get([
+                    "savedFormInputs",
+                ]);
+                const savedFormInputs: SavedFormInputs =
+                    result.savedFormInputs || {};
+
+                // Find a matching input
+                const matchingInput = Object.values(savedFormInputs).find(
+                    (input: FormInput) =>
+                        input.identifiers.some((savedId: string) =>
+                            identifiers.some(
+                                (id) =>
+                                    savedId.toLowerCase() === id.toLowerCase()
+                            )
                         )
-                    )
-            );
-
-            if (!matchingInput) return false;
-
-            // Fill the value
-            if (element instanceof HTMLSelectElement) {
-                // For select elements, first verify if the saved value is still a valid option
-                const isValidOption = Array.from(element.options).some(
-                    (option) => option.value === matchingInput.value
                 );
 
-                if (isValidOption) {
-                    element.value = matchingInput.value;
-                } else if (matchingInput.options) {
-                    // If the saved value is not valid but we have saved options,
-                    // try to find a matching option by text
-                    const savedOption = matchingInput.options.find((opt) =>
-                        Array.from(element.options).some(
-                            (currentOpt) =>
-                                currentOpt.textContent?.trim().toLowerCase() ===
-                                opt.text.toLowerCase()
-                        )
-                    );
-                    if (savedOption) {
-                        element.value = savedOption.value;
-                    }
-                }
-            } else if (
-                element instanceof HTMLInputElement ||
-                element instanceof HTMLTextAreaElement
-            ) {
-                element.value = matchingInput.value;
-            }
+                if (!matchingInput) continue;
 
-            element.dispatchEvent(new Event("input", { bubbles: true }));
-            element.dispatchEvent(new Event("change", { bubbles: true }));
-            return true;
+                // Fill the value
+                if (element instanceof HTMLSelectElement) {
+                    // For select elements, first verify if the saved value is still a valid option
+                    const isValidOption = Array.from(element.options).some(
+                        (option) => option.value === matchingInput.value
+                    );
+
+                    if (isValidOption) {
+                        element.value = matchingInput.value;
+                    } else if (matchingInput.options) {
+                        // If the saved value is not valid but we have saved options,
+                        // try to find a matching option by text
+                        const savedOption = matchingInput.options.find((opt) =>
+                            Array.from(element.options).some(
+                                (currentOpt) =>
+                                    currentOpt.textContent
+                                        ?.trim()
+                                        .toLowerCase() ===
+                                    opt.text.toLowerCase()
+                            )
+                        );
+                        if (savedOption) {
+                            element.value = savedOption.value;
+                        }
+                    }
+                } else if (
+                    element instanceof HTMLInputElement ||
+                    element instanceof HTMLTextAreaElement
+                ) {
+                    element.value = matchingInput.value;
+                }
+
+                element.dispatchEvent(new Event("input", { bubbles: true }));
+                element.dispatchEvent(new Event("change", { bubbles: true }));
+                success = true;
+            }
+            return success;
         } catch (error) {
             console.error("Failed to fill form input:", error);
             return false;
@@ -1285,14 +1378,7 @@ export class LinkedInHandler implements JobSiteHandler {
     public async skipCurrentApplication() {
         console.log("Skipping current application...");
 
-        // Store the current pause state
-        const wasPaused = this.isPaused;
-
-        // Temporarily unpause to allow the skip operation
-        if (wasPaused) {
-            this.isPaused = false;
-        }
-
+        this.isPaused = true;
         if (await this.findDismissButton()) {
             // First cancel any open dialogs/forms
             await this.cancelApplication();
@@ -1301,21 +1387,7 @@ export class LinkedInHandler implements JobSiteHandler {
         // Reset state and move to next job
         this.currentStepIndex = 0;
         this.isApplying = false;
-
-        // If we're on the jobs page, start the next application
-        if (window.location.href.includes("/jobs/")) {
-            console.log("Starting next job application...");
-            // Restore the pause state before starting next application
-            this.isPaused = wasPaused;
-            await this.autoApply();
-        } else {
-            // If we're on a single job page, go back to the jobs list
-            console.log("Not on jobs page, navigating back...");
-            window.history.back();
-            await this.sleep(2000);
-            // Restore the pause state
-            this.isPaused = wasPaused;
-        }
+        this.isPaused = false;
     }
 
     async findDismissButton(): Promise<Element | null> {
@@ -1641,5 +1713,50 @@ export class LinkedInHandler implements JobSiteHandler {
     private reloadPage(): void {
         console.log("Reloading page...");
         window.location.reload();
+    }
+
+    private isLastJobInList(): boolean {
+        return this.currentJobIndex >= this.jobListings.length;
+    }
+
+    private async goToNextJobsPage(): Promise<boolean> {
+        console.log("Attempting to go to next page of jobs...");
+
+        // Find the next page button
+        const paginationButtons = Array.from(
+            document.querySelectorAll('button[aria-label*="Page"]')
+        );
+        const nextPageButton = paginationButtons.find(
+            (button) =>
+                button
+                    .getAttribute("aria-label")
+                    ?.toLowerCase()
+                    .includes("next") ||
+                button.textContent?.toLowerCase().includes("next")
+        );
+
+        if (!nextPageButton || nextPageButton.hasAttribute("disabled")) {
+            console.log("No more pages of jobs available");
+            return false;
+        }
+
+        console.log("Found next page button, clicking...");
+        (nextPageButton as HTMLElement).click();
+
+        // Wait for new page to load
+        await this.sleep(2000);
+
+        // Reset job index for new page
+        this.currentJobIndex = 0;
+
+        // Load new job listings
+        const loaded = await this.loadJobListings();
+        if (!loaded) {
+            console.log("Failed to load jobs on new page");
+            return false;
+        }
+
+        console.log(`Loaded ${this.jobListings.length} jobs from new page`);
+        return true;
     }
 }
