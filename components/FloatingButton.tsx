@@ -139,12 +139,20 @@ const FloatingButton: React.FC = () => {
             text: "Pause",
             color: "bg-yellow-500 hover:bg-yellow-600 text-white",
             icon: (
-                <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M10 9v6m4-6v6m-7-3a9 9 0 1118 0 9 9 0 01-18 0z"
-                />
+                <>
+                    <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                    />
+                    <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M10 9v6m4-6v6"
+                    />
+                </>
             ),
             action: handlePause,
         },
