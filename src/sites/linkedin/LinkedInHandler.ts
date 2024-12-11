@@ -41,7 +41,7 @@ export class LinkedInHandler implements JobSiteHandler {
 
         // Notify UI to update button state to show "Resume"
         chrome.runtime.sendMessage({
-            type: "PAUSE_STATE_CHANGED",
+            type: "PAUSE",
             isPaused: true,
         });
     }
@@ -52,7 +52,7 @@ export class LinkedInHandler implements JobSiteHandler {
 
         // Notify UI to update button state to show "Pause"
         chrome.runtime.sendMessage({
-            type: "PAUSE_STATE_CHANGED",
+            type: "RESUME",
             isPaused: false,
         });
 
