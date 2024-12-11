@@ -1,77 +1,83 @@
-# Job Apply Pro
+<div align="center">
 
-A Chrome extension that streamlines your job application process by automating repetitive tasks on LinkedIn. Built with React and TypeScript using WXT (Web Extension Tools).
+# 🚀 Job Apply Pro
 
-## Features
+### Streamline Your Job Search with AI-Powered Automation
+
+A Chrome extension that automates LinkedIn job applications, built with React and TypeScript using WXT.
+
+[Features](#features) • [Installation](#getting-started) • [Usage](#user-guide) • [Support](#support)
+
+---
+
+</div>
+
+## ✨ Features
+
+<div align="center">
 
 ### Core Features
-- 🚀 One-click job application automation
-- 📝 Smart form auto-filling with your saved information
-- 🎯 Job title filtering to focus on relevant positions
-- 📊 Application history tracking
-- 💼 Personal information management
-- 🎨 Clean, modern UI with Tailwind CSS
+
+| Feature | Description |
+|---------|-------------|
+| 🤖 **Auto Apply** | One-click job application automation |
+| 📝 **Smart Forms** | Intelligent form auto-filling |
+| 🎯 **Job Filtering** | Focus on relevant positions |
+| 📊 **History** | Track your application progress |
+| 💼 **Profile** | Personal information management |
+| ⏯️ **Pause/Resume** | Control the automation process |
+
+</div>
 
 ### Detailed Features
 
-#### Job Application Automation
-- Automatically fills out job application forms
-- Handles multiple-choice questions and text inputs
-- Smart detection of form fields
-- Supports "Easy Apply" applications on LinkedIn
+<div align="center">
 
-#### Job Title Filtering
-- Filter jobs based on allowed and blocked keywords
-- Case-insensitive matching
-- Supports partial word matching
-- Automatically skips jobs with blocked titles
-- Easy management through the filter settings page
+#### 🤖 Job Application Automation
+Automatically handles the entire application process with smart form detection and filling.
 
-#### Application History
-- Tracks all submitted job applications
-- Shows job titles and application timestamps
-- Maintains links to applied job postings
-- Stores up to 100 recent applications
-- Easy access through the extension
+#### 🎯 Job Title Filtering
+Customize your job search with powerful filtering options to focus on relevant positions.
 
-#### Settings Management
-- Save and manage personal information
-- Customize job title filters
-- Configure application preferences
-- All settings sync across devices
+#### 📊 Application History
+Track your progress with detailed history of all submitted applications.
 
-## User Guide
+#### ⚙️ Settings Management
+Easily manage your preferences and personal information with cloud sync.
 
-### Getting Started
+</div>
 
-1. **Installation**
-   - Install the extension from Chrome Web Store
-   - Click the extension icon to open settings
+## 🚀 Getting Started
 
-2. **Initial Setup**
-   - Fill in your personal information
-   - Configure job title filters
-   - Set your application preferences
+<div align="center">
 
-### Using the Extension
+1. **Install Extension**
+   - Get it from Chrome Web Store
+   - Click the extension icon
 
-#### Job Application
-1. Navigate to a LinkedIn job posting
-2. Click the "Auto Apply" button
-3. Review the auto-filled information
-4. Submit the application
+2. **Quick Setup**
+   - Enter your profile info
+   - Configure job preferences
+   - Start automating!
 
-#### Managing Filters
-1. Open extension settings
-2. Go to "Filter Settings"
-3. Add allowed/blocked keywords
-4. Save your changes
+</div>
 
-#### Viewing History
-1. Open extension settings
-2. Go to "Application History"
-3. View all your past applications
-4. Click on job links to revisit postings
+## 📖 User Guide
+
+<div align="center">
+
+### Basic Usage
+1. Navigate to LinkedIn Jobs
+2. Click the floating action button
+3. Let the automation work its magic!
+
+### Advanced Features
+- Pause/Resume anytime
+- Filter job titles
+- Track progress
+- Manage applications
+
+</div>
 
 ## Development
 
@@ -121,3 +127,11 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 ## License
 
 This project is licensed under the MIT License - see the LICENSE file for details.
+
+<div align="center">
+
+---
+
+Made with ❤️ by the Job Apply Pro Team
+
+</div>

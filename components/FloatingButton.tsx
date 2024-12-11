@@ -1,22 +1,14 @@
-import { LinkedInHandler } from "@/src/sites/linkedin/LinkedInHandler";
-import React, { useEffect, useState } from "react";
+import {
+    ApplicationState,
+    LinkedInHandler,
+} from "@/src/sites/linkedin/LinkedInHandler";
+import React, { useEffect, useMemo, useState } from "react";
 
 const FloatingButton: React.FC = () => {
-    const [state, setState] = useState<"idle" | "running" | "paused">("idle");
+    const [state, setState] = useState<ApplicationState>(ApplicationState.IDLE);
     const [jobsApplied, setJobsApplied] = useState(0);
     const [progress, setProgress] = useState(0);
-
-    const linkedInHandler = new LinkedInHandler();
-
-    const handleSkip = async () => {
-        console.log("Skipping current application...");
-        await linkedInHandler.skipCurrentApplication();
-    };
-
-    const handleStop = async () => {
-        console.log("Stopping auto-apply...");
-        await linkedInHandler.stop();
-    };
+    const linkedInHandler = useMemo(() => new LinkedInHandler(), []);
 
     useEffect(() => {
         const loadJobsApplied = async () => {
@@ -41,6 +33,18 @@ const FloatingButton: React.FC = () => {
     }, []);
 
     useEffect(() => {
+        const stateInterval = setInterval(() => {
+            const currentState = linkedInHandler.applicationState;
+            if (currentState !== state) {
+                console.log('State changed:', { from: state, to: currentState });
+                setState(currentState);
+            }
+        }, 200);
+
+        return () => clearInterval(stateInterval);
+    }, [linkedInHandler, state]);
+
+    useEffect(() => {
         let animationFrame: number;
         let startTime: number | undefined;
 
@@ -56,12 +60,12 @@ const FloatingButton: React.FC = () => {
 
             setProgress(progress);
 
-            if (state === "running") {
+            if (state === ApplicationState.RUNNING) {
                 animationFrame = requestAnimationFrame(animate);
             }
         };
 
-        if (state === "running") {
+        if (state === ApplicationState.RUNNING) {
             startTime = undefined;
             animationFrame = requestAnimationFrame(animate);
         } else {
@@ -75,8 +79,24 @@ const FloatingButton: React.FC = () => {
         };
     }, [state]);
 
+    const handleSkip = async () => {
+        console.log("Skipping current application...");
+        await linkedInHandler.skipCurrentApplication();
+    };
+
+    const handleStop = async () => {
+        console.log("Stopping auto-apply...");
+        await linkedInHandler.stop();
+    };
+
+    const handlePause = () => {
+        console.log('Attempting to pause, current state:', linkedInHandler.applicationState);
+        linkedInHandler.pause();
+        console.log('After pause, state:', linkedInHandler.applicationState);
+    };
+
     const buttonConfig = {
-        idle: {
+        [ApplicationState.IDLE]: {
             text: "Start",
             color: "bg-emerald-600 hover:bg-emerald-700 text-white",
             icon: (
@@ -87,12 +107,9 @@ const FloatingButton: React.FC = () => {
                     d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"
                 />
             ),
-            action: () => {
-                setState("running");
-                linkedInHandler.autoApply();
-            },
+            action: () => linkedInHandler.autoApply(),
         },
-        running: {
+        [ApplicationState.RUNNING]: {
             text: "Pause",
             color: "bg-yellow-500 hover:bg-yellow-600 text-white",
             icon: (
@@ -103,12 +120,9 @@ const FloatingButton: React.FC = () => {
                     d="M10 9v6m4-6v6m-7-3a9 9 0 1118 0 9 9 0 01-18 0z"
                 />
             ),
-            action: () => {
-                setState("running");
-                linkedInHandler.pause();
-            },
+            action: handlePause,
         },
-        paused: {
+        [ApplicationState.PAUSED]: {
             text: "Resume",
             color: "bg-blue-600 hover:bg-blue-700 text-white",
             icon: (
@@ -120,7 +134,6 @@ const FloatingButton: React.FC = () => {
                 />
             ),
             action: () => {
-                setState("paused");
                 linkedInHandler.unpause();
             },
         },
@@ -131,7 +144,7 @@ const FloatingButton: React.FC = () => {
             <div className="flex relative flex-col space-y-4">
                 <div className="flex flex-col p-4 space-y-2 bg-white rounded-lg">
                     <div className="relative">
-                        {state === "running" && (
+                        {state === ApplicationState.RUNNING && (
                             <div className="overflow-hidden mb-2 w-full h-1 bg-gray-200 rounded-b-lg">
                                 <div
                                     className="h-full bg-blue-600 transition-all duration-100 ease-linear"
@@ -164,7 +177,6 @@ const FloatingButton: React.FC = () => {
                     </div>
 
                     <div className="flex flex-col space-y-2 w-full">
-                        (
                         <button
                             className="flex items-center px-4 py-2 w-full font-medium text-white bg-gray-600 rounded-lg transition-colors hover:bg-gray-700"
                             onClick={handleSkip}
@@ -187,7 +199,7 @@ const FloatingButton: React.FC = () => {
                             </div>
                             <span className="flex-grow text-center">Skip</span>
                         </button>
-                        ) (
+
                         <button
                             className="flex items-center px-4 py-2 w-full font-medium text-white bg-red-600 rounded-lg transition-colors hover:bg-red-700"
                             onClick={handleStop}
@@ -210,7 +222,7 @@ const FloatingButton: React.FC = () => {
                             </div>
                             <span className="flex-grow text-center">Stop</span>
                         </button>
-                        )
+
                         <button
                             onClick={() =>
                                 window.open(
