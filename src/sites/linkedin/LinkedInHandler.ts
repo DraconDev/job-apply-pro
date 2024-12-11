@@ -25,10 +25,15 @@ interface JobHistoryEntry {
     platform: string;
 }
 
+export enum ApplicationState {
+    IDLE = "IDLE",
+    RUNNING = "RUNNING",
+    PAUSED = "PAUSED",
+}
+
 export class LinkedInHandler implements JobSiteHandler {
     name = "LinkedIn";
-    isApplying = false;
-    isPaused = false;
+    private applicationState: ApplicationState = ApplicationState.IDLE;
     private currentJobIndex = 0;
     private jobListings: HTMLElement[] = [];
     currentStepIndex = 0;
@@ -37,22 +42,22 @@ export class LinkedInHandler implements JobSiteHandler {
 
     pause(): void {
         console.log("Pausing auto-apply process...");
-        this.isPaused = true;
+        this.applicationState = ApplicationState.PAUSED;
     }
 
     unpause(): void {
         console.log("Resuming auto-apply process...");
-        this.isPaused = false;
+        this.applicationState = ApplicationState.RUNNING;
 
         // Continue application if we were in the middle of one
-        if (this.isApplying) {
+        if (this.applicationState === ApplicationState.RUNNING) {
             console.log("Continuing application from current step...");
             this.continueApplication();
         }
     }
 
     async resumeApplication(): Promise<boolean> {
-        if (this.isPaused) {
+        if (this.applicationState === ApplicationState.PAUSED) {
             this.unpause();
             return this.autoApply();
         }
@@ -107,7 +112,7 @@ export class LinkedInHandler implements JobSiteHandler {
         button: HTMLElement,
         isNextButton: boolean = false
     ): Promise<boolean> {
-        if (this.isPaused) {
+        if (this.applicationState === ApplicationState.PAUSED) {
             console.log("Application paused before submitting");
             return false;
         }
@@ -120,8 +125,8 @@ export class LinkedInHandler implements JobSiteHandler {
         // First click the submit button
         button.click();
         await this.sleep(2000); // Initial wait after click
-
-        if (this.isPaused) {
+        // @ts-ignore: state can change between async operations
+        if (this.applicationState === ApplicationState.PAUSED) {
             console.log("Application paused after submit click");
             return false;
         }
@@ -129,20 +134,24 @@ export class LinkedInHandler implements JobSiteHandler {
         // Check for any error messages that might appear
         if (this.hasErrors()) {
             console.log("Found errors after submit click");
-            if (!this.isPaused) {
+            // @ts-ignore: state can change between async operations
+
+            if (this.applicationState !== ApplicationState.PAUSED) {
                 await this.handleValidationErrors();
             }
         }
+        // @ts-ignore: state can change between async operations
 
-        if (this.isPaused) {
+        if (this.applicationState === ApplicationState.PAUSED) {
             console.log("Application paused before final wait");
             return false;
         }
 
         // Wait longer for submission to complete
         await this.sleep(1000); // Reduced wait time from 8s to 3s
+        // @ts-ignore: state can change between async operations
 
-        if (this.isPaused) {
+        if (this.applicationState === ApplicationState.PAUSED) {
             console.log("Application paused before storage update");
             return false;
         }
@@ -159,8 +168,9 @@ export class LinkedInHandler implements JobSiteHandler {
         } catch (error) {
             console.error("Failed to update application data:", error);
         }
+        // @ts-ignore: state can change between async operations
 
-        if (this.isPaused) {
+        if (this.applicationState === ApplicationState.PAUSED) {
             console.log("Application paused before done button");
             return false;
         }
@@ -175,14 +185,17 @@ export class LinkedInHandler implements JobSiteHandler {
         );
         if (doneButton) {
             console.log("Found done button, clicking it");
-            if (!this.isPaused) {
+            // @ts-ignore: state can change between async operations
+
+            if (this.applicationState !== ApplicationState.PAUSED) {
                 doneButton.click();
             }
         } else {
             console.log("No done button found");
         }
+        // @ts-ignore: state can change between async operations
 
-        if (this.isPaused) {
+        if (this.applicationState === ApplicationState.PAUSED) {
             console.log("Application paused before final cleanup");
             return false;
         }
@@ -191,11 +204,16 @@ export class LinkedInHandler implements JobSiteHandler {
 
         // Reset for next job
         this.currentStepIndex = 0;
-        this.isApplying = false;
+        this.applicationState = ApplicationState.IDLE;
 
         // Start next job application
         console.log("Starting next job application...");
-        if (!this.isPaused && window.location.href.includes("/jobs/")) {
+        if (
+            // @ts-ignore: state can change between async operations
+
+            this.applicationState !== ApplicationState.PAUSED &&
+            window.location.href.includes("/jobs/")
+        ) {
             this.currentJobIndex++;
             await this.autoApply();
         }
@@ -219,7 +237,7 @@ export class LinkedInHandler implements JobSiteHandler {
         const retryButton = await this.findNextButton();
         if (!retryButton) {
             console.log("No next button found after filling fields");
-            this.isApplying = false;
+            this.applicationState = ApplicationState.IDLE;
             return false;
         }
         retryButton.click();
@@ -228,7 +246,7 @@ export class LinkedInHandler implements JobSiteHandler {
     }
 
     private async processApplicationStep(stepCount: number): Promise<boolean> {
-        if (this.isPaused) {
+        if (this.applicationState === ApplicationState.PAUSED) {
             console.log("Application is paused, skipping step processing");
             return false;
         }
@@ -247,24 +265,24 @@ export class LinkedInHandler implements JobSiteHandler {
             );
 
             // Set pause state
-            this.isPaused = true;
+            this.applicationState = ApplicationState.PAUSED;
 
             // Create a timeout that will be cleared if we unpause early
             const timeoutPromise = new Promise<void>((resolve) => {
                 const timeout = setTimeout(() => {
                     // Only unpause if we haven't already been unpaused manually
-                    if (this.isPaused) {
+                    if (this.applicationState === ApplicationState.PAUSED) {
                         console.log(
                             "30 seconds elapsed, automatically unpausing"
                         );
-                        this.isPaused = false;
+                        this.applicationState = ApplicationState.RUNNING;
                     }
                     resolve();
                 }, 30000);
 
                 // Set up an interval to check if we've been manually unpaused
                 const checkInterval = setInterval(() => {
-                    if (!this.isPaused) {
+                    if (this.applicationState !== ApplicationState.PAUSED) {
                         console.log(
                             "Manual unpause detected, clearing auto-unpause timer"
                         );
@@ -310,7 +328,7 @@ export class LinkedInHandler implements JobSiteHandler {
             5000
         );
         if (submitButton) {
-            if (this.isPaused) {
+            if (this.applicationState === ApplicationState.PAUSED) {
                 console.log("Application paused before submit");
                 return false;
             }
@@ -320,15 +338,16 @@ export class LinkedInHandler implements JobSiteHandler {
         }
 
         // First try to proceed without filling anything
-        if (this.isPaused) {
+        if (this.applicationState === ApplicationState.PAUSED) {
             console.log("Application paused before finding next button");
             return false;
         }
 
         console.log("Attempting to proceed without filling fields...");
         const nextButton = await this.findNextButton();
+        // @ts-ignore: state can change between async operations
 
-        if (this.isPaused) {
+        if (this.applicationState === ApplicationState.PAUSED) {
             console.log("Application paused after finding next button");
             return false;
         }
@@ -344,7 +363,9 @@ export class LinkedInHandler implements JobSiteHandler {
 
         // Check for any validation errors or required fields
         if (this.hasErrors()) {
-            if (!this.isPaused) {
+            // @ts-ignore: state can change between async operations
+
+            if (this.applicationState !== ApplicationState.PAUSED) {
                 await this.handleValidationErrors();
             }
         }
@@ -353,12 +374,12 @@ export class LinkedInHandler implements JobSiteHandler {
     }
 
     async autoApply(): Promise<boolean> {
-        if (this.isApplying) {
+        if (this.applicationState === ApplicationState.RUNNING) {
             console.log("Already applying to jobs");
             return false;
         }
 
-        this.isApplying = true;
+        this.applicationState = ApplicationState.RUNNING;
 
         // If we're on the search page, load all job listings
         if (window.location.href.includes("/jobs/")) {
@@ -366,7 +387,7 @@ export class LinkedInHandler implements JobSiteHandler {
             const loaded = await this.loadJobListings();
             if (!loaded) {
                 console.log("Failed to load job listings");
-                this.isApplying = false;
+                this.applicationState = ApplicationState.IDLE;
                 return false;
             }
 
@@ -383,18 +404,18 @@ export class LinkedInHandler implements JobSiteHandler {
                     const nextPageSuccess = await this.goToNextJobsPage();
                     if (!nextPageSuccess) {
                         console.log("No more pages available");
-                        this.isApplying = false;
+                        this.applicationState = ApplicationState.IDLE;
                         return false;
                     }
                     // Try selecting first job on new page
                     const selectedOnNewPage = await this.selectNextJob();
                     if (!selectedOnNewPage) {
                         console.log("Failed to select job on new page");
-                        this.isApplying = false;
+                        this.applicationState = ApplicationState.IDLE;
                         return false;
                     }
                 } else {
-                    this.isApplying = false;
+                    this.applicationState = ApplicationState.IDLE;
                     return false;
                 }
             }
@@ -411,14 +432,14 @@ export class LinkedInHandler implements JobSiteHandler {
         // Check if already applied to current job
         if (this.isJobAlreadyApplied()) {
             console.log("Skipping already applied job:", jobInfo.title);
-            this.isApplying = false;
+            this.applicationState = ApplicationState.IDLE;
             return false;
         }
 
         // Check if job title is allowed
         if (!(await this.isJobTitleAllowed(jobInfo.title))) {
             console.log("Skipping job due to title filter:", jobInfo.title);
-            this.isApplying = false;
+            this.applicationState = ApplicationState.IDLE;
             return false;
         }
 
@@ -435,11 +456,12 @@ export class LinkedInHandler implements JobSiteHandler {
 
         if (!easyApplyButton) {
             console.log("No Easy Apply button found");
-            this.isApplying = false;
+            this.applicationState = ApplicationState.IDLE;
             return false;
         }
+        // @ts-ignore: state can change between async operations
 
-        if (this.isPaused) {
+        if (this.applicationState === ApplicationState.PAUSED) {
             console.log("Application paused before clicking Easy Apply");
             return false;
         }
@@ -450,8 +472,10 @@ export class LinkedInHandler implements JobSiteHandler {
 
         // Process each step of the application
         let stepCount = 0;
-        while (this.isApplying) {
-            if (this.isPaused) {
+        while (this.applicationState === ApplicationState.RUNNING) {
+            // @ts-ignore: state can change between async operations
+
+            if (this.applicationState === ApplicationState.PAUSED) {
                 console.log("Application paused, waiting...");
                 await this.sleep(1000);
                 continue;
@@ -475,8 +499,9 @@ export class LinkedInHandler implements JobSiteHandler {
                 await this.saveToHistory(jobInfo);
                 return true;
             }
+            // @ts-ignore: state can change between async operations
 
-            if (this.isPaused) {
+            if (this.applicationState === ApplicationState.PAUSED) {
                 console.log("Application paused after step processing");
                 return false;
             }
@@ -1271,7 +1296,7 @@ export class LinkedInHandler implements JobSiteHandler {
             console.log("Attempting to continue application...");
 
             // Check if paused before continuing
-            if (this.isPaused) {
+            if (this.applicationState === ApplicationState.PAUSED) {
                 console.log("Application is paused, not continuing");
                 return;
             }
@@ -1281,7 +1306,7 @@ export class LinkedInHandler implements JobSiteHandler {
             const nextButton = await this.findNextButton();
             if (!nextButton) {
                 console.log("No next button found to continue application");
-                this.isApplying = false;
+                this.applicationState = ApplicationState.IDLE;
                 return;
             }
 
@@ -1294,7 +1319,7 @@ export class LinkedInHandler implements JobSiteHandler {
             let stepCount = this.currentStepIndex;
             console.log(`Resuming from step ${stepCount}`);
 
-            while (!this.isPaused) {
+            while (this.applicationState === ApplicationState.RUNNING) {
                 stepCount++;
                 if (stepCount > this.MAX_STEPS) {
                     console.log(
@@ -1312,7 +1337,9 @@ export class LinkedInHandler implements JobSiteHandler {
                 await this.sleep(1000);
 
                 // Check pause state after sleep
-                if (this.isPaused) {
+                // @ts-ignore: state can change between async operations
+
+                if (this.applicationState === ApplicationState.PAUSED) {
                     console.log(`Auto-apply paused during step ${stepCount}`);
                     return;
                 }
@@ -1334,8 +1361,9 @@ export class LinkedInHandler implements JobSiteHandler {
                     return;
                 }
 
-                // Check pause state again
-                if (this.isPaused) {
+                // @ts-ignore: state can change between async operations
+
+                if (this.applicationState === ApplicationState.PAUSED) {
                     console.log(`Auto-apply paused during step ${stepCount}`);
                     return;
                 }
@@ -1345,8 +1373,9 @@ export class LinkedInHandler implements JobSiteHandler {
                     `Looking for next/submit button for step ${stepCount}...`
                 );
                 const nextBtn = await this.findNextButton();
+                // @ts-ignore: state can change between async operations
 
-                if (this.isPaused) {
+                if (this.applicationState === ApplicationState.PAUSED) {
                     console.log("Application paused after finding next button");
                     return;
                 }
@@ -1364,7 +1393,9 @@ export class LinkedInHandler implements JobSiteHandler {
                     await this.sleep(500);
 
                     // Check pause state after sleep
-                    if (this.isPaused) {
+                    // @ts-ignore: state can change between async operations
+
+                    if (this.applicationState === ApplicationState.PAUSED) {
                         console.log(
                             `Auto-apply paused during step ${stepCount}`
                         );
@@ -1379,8 +1410,9 @@ export class LinkedInHandler implements JobSiteHandler {
                     console.log(
                         `Completed filling fields in step ${stepCount}`
                     );
+                    // @ts-ignore: state can change between async operations
 
-                    if (this.isPaused) {
+                    if (this.applicationState === ApplicationState.PAUSED) {
                         console.log(
                             `Auto-apply paused after step ${stepCount}`
                         );
@@ -1391,7 +1423,7 @@ export class LinkedInHandler implements JobSiteHandler {
         } catch (error) {
             console.error("Error during continue application:", error);
             console.log("Resetting application state due to error");
-            this.isApplying = false;
+            this.applicationState = ApplicationState.IDLE;
             this.currentStepIndex = 0;
         }
     }
@@ -1399,7 +1431,7 @@ export class LinkedInHandler implements JobSiteHandler {
     public async skipCurrentApplication() {
         console.log("Skipping current application...");
 
-        this.isPaused = true;
+        this.applicationState = ApplicationState.PAUSED;
         if (await this.findDismissButton()) {
             // First cancel any open dialogs/forms
             await this.cancelApplication();
@@ -1407,8 +1439,7 @@ export class LinkedInHandler implements JobSiteHandler {
 
         // Reset state and move to next job
         this.currentStepIndex = 0;
-        this.isApplying = false;
-        this.isPaused = false;
+        this.applicationState = ApplicationState.IDLE;
     }
 
     async findDismissButton(): Promise<Element | null> {
@@ -1469,9 +1500,7 @@ export class LinkedInHandler implements JobSiteHandler {
         }
 
         // Reset all application state
-        this.isApplying = false;
-        this.isPaused = false;
-        this.currentStepIndex = 0;
+        this.applicationState = ApplicationState.IDLE;
         console.log("Application canceled");
     }
 
@@ -1837,8 +1866,7 @@ export class LinkedInHandler implements JobSiteHandler {
     async stop(): Promise<void> {
         console.log("Stopping auto-apply...");
         await this.cancelApplication();
-        this.pause();
-        this.isApplying = false;
+        this.applicationState = ApplicationState.IDLE;
         this.currentStepIndex = 0;
         this.resetJobIndex();
     }
