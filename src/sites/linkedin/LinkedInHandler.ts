@@ -251,65 +251,49 @@ export class LinkedInHandler implements JobSiteHandler {
         // Check for any alerts before proceeding
         const alerts = await this.checkForAlerts();
         if (alerts.length > 0) {
-            console.log(
-                "Found alerts, pausing for 30 seconds for possible manual input:",
-                alerts
-            );
+            console.log("Found alerts, attempting to continue:", alerts);
+            await this.sleep(500);
 
-            // Set pause state
-            this.applicationState = ApplicationState.PAUSED;
+            // Check for pause before handling alerts
+            // @ts-ignore: state can change between async operations
+            if (this.applicationState === ApplicationState.PAUSED) {
+                console.log("Application paused during alert handling");
+                return false;
+            }
 
-            // Create a timeout that will be cleared if we unpause early
-            const timeoutPromise = new Promise<void>((resolve) => {
-                const timeout = setTimeout(() => {
-                    // Only unpause if we haven't already been unpaused manually
-                    if (this.applicationState === ApplicationState.PAUSED) {
-                        console.log(
-                            "30 seconds elapsed, automatically unpausing"
-                        );
-                        this.applicationState = ApplicationState.RUNNING;
-                    }
-                    resolve();
-                }, 30000);
-
-                // Set up an interval to check if we've been manually unpaused
-                const checkInterval = setInterval(() => {
-                    if (this.applicationState !== ApplicationState.PAUSED) {
-                        console.log(
-                            "Manual unpause detected, clearing auto-unpause timer"
-                        );
-                        clearTimeout(timeout);
-                        clearInterval(checkInterval);
-                        resolve();
-                    }
-                }, 500);
-            });
-
-            // Wait for either timeout or manual unpause
-            await timeoutPromise;
-
-            // Try to fill fields from sync store after pause
-            console.log(
-                "Attempting to fill fields from sync store after pause"
-            );
+            // Try to fill fields from sync store
+            console.log("Attempting to fill fields from sync store");
             await this.fillFormInput();
+            // @ts-ignore: state can change between async operations
 
-            // Save any new field values that might have been manually entered
-            console.log("Saving any manually entered field values");
+            // Check for pause after fill attempt
+            if (this.applicationState === ApplicationState.PAUSED) {
+                console.log("Application paused after field fill attempt");
+                return false;
+            }
+
+            // Save any new field values
+            console.log("Saving current field values");
             await this.saveFormInput();
+            // @ts-ignore: state can change between async operations
+
+            // Check for pause after fill attempt
+            if (this.applicationState === ApplicationState.PAUSED) {
+                console.log("Application paused after field fill attempt");
+                return false;
+            }
 
             // Check if alerts are still present
             const updatedAlerts = await this.checkForAlerts();
             if (updatedAlerts.length > 0) {
                 console.log(
-                    "Alerts still present after pause and fill attempt, skipping application:",
+                    "Alerts still present after fill attempt, skipping application:",
                     updatedAlerts
                 );
                 await this.skipCurrentApplication();
                 return false;
-            } else {
-                console.log("Alerts resolved, continuing with application");
             }
+            console.log("Alerts resolved, continuing with application");
         }
 
         await this.sleep(1000);
@@ -320,16 +304,18 @@ export class LinkedInHandler implements JobSiteHandler {
             5000
         );
         if (submitButton) {
+            // @ts-ignore: state can change between async operations
             if (this.applicationState === ApplicationState.PAUSED) {
                 console.log("Application paused before submit");
                 return false;
             }
             console.log("Found submit button, clicking it...");
             await this.handleSubmitButton(submitButton as HTMLElement, false);
-            return true; // Only return true when we've actually submitted
+            return true;
         }
 
         // First try to proceed without filling anything
+        // @ts-ignore: state can change between async operations
         if (this.applicationState === ApplicationState.PAUSED) {
             console.log("Application paused before finding next button");
             return false;
@@ -371,11 +357,8 @@ export class LinkedInHandler implements JobSiteHandler {
             this.applicationState
         );
 
-        if (this.applicationState === ApplicationState.PAUSED) {
-            console.log("Auto-apply is paused, waiting to resume...");
-            await this.waitForUnpause();
-            console.log("Resumed from pause, continuing autoApply");
-        }
+        await this.checkIfPaused();
+        if (this.checkIfStopped()) return false;
 
         // Only set to RUNNING if we're not already PAUSED
         if (this.applicationState !== ApplicationState.PAUSED) {
@@ -383,75 +366,79 @@ export class LinkedInHandler implements JobSiteHandler {
             console.log("Set state to RUNNING");
         }
 
-        // If we're on the search page, load all job listings
-        if (window.location.href.includes("/jobs/")) {
+        await this.checkIfPaused();
+        if (this.checkIfStopped()) return false;
+
+        // If we're on the jobs page and don't have listings yet, load them
+        if (
+            window.location.href.includes("/jobs/") &&
+            this.jobListings.length === 0
+        ) {
             console.log("On jobs page, loading listings...");
+            await this.checkIfPaused();
+            if (this.checkIfStopped()) return false;
+
             const loaded = await this.loadJobListings();
             if (!loaded) {
                 console.log("Failed to load job listings");
                 this.applicationState = ApplicationState.IDLE;
                 return false;
             }
-            // @ts-ignore: state can change between async operations
-            if (this.applicationState === ApplicationState.PAUSED) {
-                await this.waitForUnpause();
-            }
 
-            // Select the next job to process
-            const selected = await this.selectNextJob();
-            if (!selected) {
-                console.log("Failed to select next job");
-
-                // If we're at the last job in the list, try to go to next page
-                if (this.isLastJobInList()) {
-                    console.log(
-                        "At last job in list, attempting to go to next page..."
-                    );
-                    const nextPageSuccess = await this.goToNextJobsPage();
-                    if (!nextPageSuccess) {
-                        console.log("No more pages available");
-                        this.applicationState = ApplicationState.IDLE;
-                        return false;
-                    }
-                    this.autoApply();
-                }
-            }
-            // @ts-ignore: state can change between async operations
-            if (this.applicationState === ApplicationState.PAUSED) {
-                await this.waitForUnpause();
-            }
-
-            // Wait for the job details to load
-            await this.sleep(2500);
+            await this.checkIfPaused();
+            if (this.checkIfStopped()) return false;
         }
 
+        // Select the next job to process
+        await this.checkIfPaused();
+        if (this.checkIfStopped()) return false;
+
+        const selected = await this.selectNextJob();
+        if (!selected) {
+            console.log("Failed to select next job");
+            // Only increment here, not in selectNextJob
+            return this.autoApply();
+        }
+
+        await this.checkIfPaused();
+        if (this.checkIfStopped()) return false;
+
+        // Wait for the job details to load
+        await this.sleep(2500);
+        if (this.checkIfStopped()) return false;
+
         // Get job info for logging
+        await this.checkIfPaused();
         const jobInfo = await this.getJobInfo();
         this.currentJobInfo = jobInfo;
         console.log("Selected job:", jobInfo.title);
-        // @ts-ignore: state can change between async operations
-        if (this.applicationState === ApplicationState.PAUSED) {
-            await this.waitForUnpause();
-        }
+        if (this.checkIfStopped()) return false;
+
+        await this.checkIfPaused();
 
         // Check if already applied to current job
         if (this.isJobAlreadyApplied()) {
             console.log("Skipping already applied job:", jobInfo.title);
             return this.autoApply();
         }
+        if (this.checkIfStopped()) return false;
+
+        await this.checkIfPaused();
 
         // Check if job title is allowed
         if (!(await this.isJobTitleAllowed(jobInfo.title))) {
             console.log("Skipping job due to title filter:", jobInfo.title);
             return this.autoApply();
         }
-        // @ts-ignore: state can change between async operations
-        if (this.applicationState === ApplicationState.PAUSED) {
-            await this.waitForUnpause();
-        }
+        if (this.checkIfStopped()) return false;
+
+        await this.checkIfPaused();
 
         // Click the apply button
         console.log("Looking for Easy Apply button for job:", jobInfo.title);
+
+        await this.checkIfPaused();
+        if (this.checkIfStopped()) return false;
 
         // Find any button that has "job" in its class name and "easy apply" in text
         const buttons = Array.from(document.querySelectorAll("button"));
@@ -460,29 +447,30 @@ export class LinkedInHandler implements JobSiteHandler {
                 button.className.toLowerCase().includes("job") &&
                 button.textContent?.toLowerCase().includes("easy apply")
         );
+        if (this.checkIfStopped()) return false;
+
+        await this.checkIfPaused();
 
         if (!easyApplyButton) {
             console.log("No Easy Apply button found");
             return this.autoApply();
         }
-        // @ts-ignore: state can change between async operations
-        if (this.applicationState === ApplicationState.PAUSED) {
-            await this.waitForUnpause();
-        }
+        if (this.checkIfStopped()) return false;
+
+        await this.checkIfPaused();
 
         console.log("Found Easy Apply button, clicking...");
         (easyApplyButton as HTMLElement).click();
         await this.sleep(2000);
+        if (this.checkIfStopped()) return false;
+
+        await this.checkIfPaused();
 
         // Process each step of the application
         let stepCount = 0;
         while (this.applicationState === ApplicationState.RUNNING) {
-            // @ts-ignore: state can change between async operations
-
-            if (this.applicationState === ApplicationState.PAUSED) {
-                await this.waitForUnpause();
-                continue;
-            }
+            if (this.checkIfStopped()) return false;
+            await this.checkIfPaused();
 
             stepCount++;
             if (stepCount > this.MAX_STEPS) {
@@ -493,16 +481,33 @@ export class LinkedInHandler implements JobSiteHandler {
                 return this.autoApply();
             }
 
+            await this.checkIfPaused();
+            if (this.checkIfStopped()) return false;
+
             this.currentStepIndex = stepCount;
             const result = await this.processApplicationStep(
                 this.currentStepIndex
             );
+
+            await this.checkIfPaused();
+            if (this.checkIfStopped()) return false;
+
             if (result) {
                 console.log("Application completed successfully");
                 await this.saveToHistory(jobInfo);
+
+                await this.checkIfPaused();
+                if (this.checkIfStopped()) return false;
+
                 return this.autoApply();
             }
+
+            await this.checkIfPaused();
+            if (this.checkIfStopped()) return false;
         }
+
+        await this.checkIfPaused();
+        if (this.checkIfStopped()) return false;
 
         return this.autoApply();
     }
@@ -523,6 +528,14 @@ export class LinkedInHandler implements JobSiteHandler {
         }
 
         console.log("Exited pause state after", waitCounter, "seconds");
+    }
+
+    private async checkIfPaused(): Promise<void> {
+        if (this.applicationState === ApplicationState.PAUSED) {
+            console.log("Auto-apply is paused, waiting to resume...");
+            await this.waitForUnpause();
+            console.log("Resumed from pause, continuing autoApply");
+        }
     }
 
     private isApplicationComplete(): boolean {
@@ -627,23 +640,40 @@ export class LinkedInHandler implements JobSiteHandler {
 
     private async selectNextJob(): Promise<boolean> {
         if (this.currentJobIndex >= this.jobListings.length) {
-            console.log("No more jobs to process");
-            return false;
+            console.log(
+                `Current index ${this.currentJobIndex} exceeds list size ${this.jobListings.length}, loading next page...`
+            );
+            this.jobListings = []; // Clear list before loading next page
+            const nextPageSuccess = await this.goToNextJobsPage();
+            if (!nextPageSuccess) {
+                console.log("No more pages of jobs available");
+                return false;
+            }
+            // Reset index and try loading jobs from new page
+            this.currentJobIndex = 0;
+            const loaded = await this.loadJobListings();
+            if (!loaded || this.jobListings.length === 0) {
+                console.log("Failed to load jobs from next page");
+                return false;
+            }
+            console.log(
+                `Successfully loaded ${this.jobListings.length} jobs from next page`
+            );
         }
 
         const jobItem = this.jobListings[this.currentJobIndex];
+        console.log(
+            `Processing job ${this.currentJobIndex + 1} of ${
+                this.jobListings.length
+            }`
+        );
+        this.currentJobIndex++;
 
         try {
             // Find and click the job title link
             const titleElement = Array.from(
                 jobItem.getElementsByTagName("a")
             ).find((a) => a.getAttribute("href")?.includes("/jobs/view/"));
-
-            console.log(
-                `Selecting job ${this.currentJobIndex + 1} of ${
-                    this.jobListings.length
-                }`
-            );
 
             // Scroll the job into view
             jobItem.scrollIntoView({ behavior: "smooth", block: "center" });
@@ -653,16 +683,13 @@ export class LinkedInHandler implements JobSiteHandler {
             if (titleElement) {
                 titleElement.click();
                 await this.sleep(2500); // Wait longer for job details to load
-                this.currentJobIndex++;
                 return true;
             } else {
-                console.log("Could not find job title link to click");
-                this.currentJobIndex++; // Skip this job
+                console.log("No job title link found - skipping job");
                 return false;
             }
         } catch (error) {
             console.error("Error selecting job:", error);
-            this.currentJobIndex++; // Skip on error
             return false;
         }
     }
@@ -1308,15 +1335,15 @@ export class LinkedInHandler implements JobSiteHandler {
     public async skipCurrentApplication() {
         console.log("Skipping current application...");
 
-        this.applicationState = ApplicationState.PAUSED;
-        if (await this.findDismissButton()) {
+        try {
             // First cancel any open dialogs/forms
             await this.cancelApplication();
-        }
 
-        // Reset state and move to next job
-        this.currentStepIndex = 0;
-        this.applicationState = ApplicationState.RUNNING;
+            // Reset state and move to next job
+            this.currentStepIndex = 0;
+        } catch (error) {
+            console.error("Error during skip operation:", error);
+        }
     }
 
     async findDismissButton(): Promise<Element | null> {
@@ -1340,7 +1367,7 @@ export class LinkedInHandler implements JobSiteHandler {
     async cancelApplication(): Promise<void> {
         console.log("Canceling application process...");
 
-        // Look for and click the dismiss button
+        // Look for and click the dismiss button first
         const dismissButtons = Array.from(
             document.querySelectorAll("button")
         ).filter(
@@ -1355,7 +1382,10 @@ export class LinkedInHandler implements JobSiteHandler {
         if (dismissButtons.length > 0) {
             console.log("Found dismiss button, clicking it...");
             dismissButtons[0].click();
-            await this.sleep(1000);
+            await this.sleep(2000); // Increased wait time
+        } else {
+            console.log("No dismiss button found");
+            return;
         }
 
         // Look for and click the discard button
@@ -1373,13 +1403,15 @@ export class LinkedInHandler implements JobSiteHandler {
         if (discardButtons.length > 0) {
             console.log("Found discard button, clicking it...");
             discardButtons[0].click();
-            await this.sleep(1000);
+            await this.sleep(2000); // Increased wait time
+        } else {
+            console.log("No discard button found");
+            return;
         }
 
-        // Reset step index but keep running
-        this.currentStepIndex = 0;
-        console.log("Application canceled, continuing to next job...");
-        this.autoApply();
+        // Additional wait to ensure everything is cleared
+        await this.sleep(3000);
+        console.log("Application canceled successfully");
     }
 
     private midWait(): Promise<void> {
@@ -1742,10 +1774,33 @@ export class LinkedInHandler implements JobSiteHandler {
     }
 
     async stop(): Promise<void> {
-        console.log("Stopping auto-apply...");
-        await this.cancelApplication();
-        this.applicationState = ApplicationState.IDLE;
-        this.currentStepIndex = 0;
-        this.resetJobIndex();
+        console.log("Stopping auto-apply process...");
+
+        try {
+            // First try to cancel any open application
+            // Clear all state
+            this.applicationState = ApplicationState.IDLE;
+            this.currentStepIndex = 0;
+            this.currentJobIndex = 0;
+            this.jobListings = [];
+            this.currentJobInfo = null;
+            await this.cancelApplication();
+
+            console.log("Auto-apply process stopped successfully");
+        } catch (error) {
+            console.error("Error while stopping auto-apply:", error);
+            // Still reset state even if there's an error
+            this.applicationState = ApplicationState.IDLE;
+            this.currentStepIndex = 0;
+            this.resetJobIndex();
+        }
+    }
+
+    private checkIfStopped(): boolean {
+        if (this.applicationState === ApplicationState.IDLE) {
+            console.log("Auto-apply is stopped, exiting");
+            return true;
+        }
+        return false;
     }
 }
