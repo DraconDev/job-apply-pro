@@ -1,7 +1,6 @@
 import { createRoot } from "react-dom/client";
 import { defineContentScript } from "wxt/sandbox";
 import FloatingButton from "../components/FloatingButton";
-import { MessageHandler } from "../src/services/messageHandler";
 import { LinkedInHandler } from "../src/sites/linkedin/LinkedInHandler";
 import "./content/style.css";
 
@@ -26,7 +25,8 @@ export default defineContentScript({
 
         // Initialize handlers
         const linkedInHandler = new LinkedInHandler();
-        const messageHandler = new MessageHandler();
+
+        // State management
         let isAutoApplyEnabled = false;
         let autoApplyTimeoutId: number | null = null;
 
@@ -98,36 +98,7 @@ export default defineContentScript({
             linkedInHandler.isApplying = false;
             linkedInHandler.currentStepIndex = 0;
             clearAutoApplyTimeout();
-            // Reset the job index to ensure fresh start next time
             linkedInHandler.resetJobIndex();
-
-            // First toggle off auto-apply
-            await handleAutoApplyToggle(false);
-
-            // Then reset the state to idle
-            chrome.runtime
-                .sendMessage({
-                    type: "RESET_STATE",
-                })
-                .catch((error) => {
-                    console.error(
-                        "Failed to send state change message:",
-                        error
-                    );
-                });
-        };
-
-        const handleStartAutoApply = async () => {
-            if (!linkedInHandler) return;
-
-            // Start the auto-apply process
-            linkedInHandler.unpause();
-            const success = await linkedInHandler.autoApply();
-
-            if (!success) {
-                console.log("Auto-apply process failed or was stopped");
-                linkedInHandler.pause();
-            }
         };
 
         root.render(
@@ -137,60 +108,8 @@ export default defineContentScript({
                 onStop={handleStop}
             />
         );
-        console.log("Rendered FloatingButton component");
-
-        // Listen for messages from the extension
-        chrome.runtime.onMessage.addListener(
-            (message, sender, sendResponse) => {
-                try {
-                    switch (message.type) {
-                        case "GET_JOB_DETAILS":
-                            if (!linkedInHandler.isValidJobPage()) {
-                                sendResponse({
-                                    success: false,
-                                    error: "Not a valid job page",
-                                });
-                                break;
-                            }
-
-                            const details = linkedInHandler.getJobDetails();
-                            console.log("Job details:", details);
-                            sendResponse({ success: true, details });
-                            break;
-
-                        default:
-                            console.log("Unknown message type:", message.type);
-                            sendResponse({
-                                success: false,
-                                error: "Unknown message type",
-                            });
-                    }
-                } catch (error: unknown) {
-                    console.error("Error handling message:", error);
-                    let errorMessage = "An unknown error occurred";
-
-                    if (error instanceof Error) {
-                        errorMessage = error.message;
-                    } else if (typeof error === "string") {
-                        errorMessage = error;
-                    }
-
-                    sendResponse({
-                        success: false,
-                        error: errorMessage,
-                    });
-                }
-
-                return true; // Keep the message channel open for async response
-            }
-        );
 
         async function handleAutoApply() {
-            console.log(
-                "handleAutoApply called, isAutoApplyEnabled:",
-                isAutoApplyEnabled
-            );
-
             if (!isAutoApplyEnabled || linkedInHandler.isPaused) {
                 console.log("Auto-apply is disabled or paused");
                 clearAutoApplyTimeout();
@@ -198,7 +117,6 @@ export default defineContentScript({
             }
 
             try {
-                console.log("Starting auto-apply process...");
                 const success = await linkedInHandler.autoApply();
 
                 if (success) {
@@ -208,9 +126,7 @@ export default defineContentScript({
                 }
 
                 if (!isAutoApplyEnabled) {
-                    console.log(
-                        "Auto-apply was disabled during job application, stopping"
-                    );
+                    console.log("Auto-apply was disabled during job application, stopping");
                     linkedInHandler.pause();
                     return;
                 }
@@ -218,18 +134,10 @@ export default defineContentScript({
                 // Schedule next job processing if we're still enabled
                 if (isAutoApplyEnabled) {
                     clearAutoApplyTimeout();
-                    autoApplyTimeoutId = setTimeout(
-                        handleAutoApply,
-                        3000
-                    ) as unknown as number;
+                    autoApplyTimeoutId = setTimeout(handleAutoApply, 3000) as unknown as number;
                 }
             } catch (error: unknown) {
                 console.error("Error in auto-apply process:", error);
-                const errorMessage =
-                    error instanceof Error ? error.message : String(error);
-                if (error instanceof Error) {
-                    console.error("Error stack:", error.stack);
-                }
                 isAutoApplyEnabled = false;
                 linkedInHandler.pause();
                 clearAutoApplyTimeout();

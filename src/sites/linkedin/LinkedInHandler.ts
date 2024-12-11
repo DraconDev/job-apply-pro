@@ -38,23 +38,11 @@ export class LinkedInHandler implements JobSiteHandler {
     pause(): void {
         console.log("Pausing auto-apply process...");
         this.isPaused = true;
-
-        // Notify UI to update button state to show "Resume"
-        chrome.runtime.sendMessage({
-            type: "PAUSE",
-            isPaused: true,
-        });
     }
 
     unpause(): void {
         console.log("Resuming auto-apply process...");
         this.isPaused = false;
-
-        // Notify UI to update button state to show "Pause"
-        chrome.runtime.sendMessage({
-            type: "RESUME",
-            isPaused: false,
-        });
 
         // Continue application if we were in the middle of one
         if (this.isApplying) {
