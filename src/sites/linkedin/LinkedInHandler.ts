@@ -229,7 +229,6 @@ export class LinkedInHandler implements JobSiteHandler {
         const retryButton = await this.findNextButton();
         if (!retryButton) {
             console.log("No next button found after filling fields");
-            this.applicationState = ApplicationState.IDLE;
             return false;
         }
         retryButton.click();
@@ -352,6 +351,8 @@ export class LinkedInHandler implements JobSiteHandler {
     }
 
     async autoApply(): Promise<boolean> {
+        this.applicationState = ApplicationState.RUNNING;
+
         console.log(
             "Starting autoApply, current state:",
             this.applicationState
@@ -359,12 +360,6 @@ export class LinkedInHandler implements JobSiteHandler {
 
         await this.checkIfPaused();
         if (this.checkIfStopped()) return false;
-
-        // Only set to RUNNING if we're not already PAUSED
-        if (this.applicationState !== ApplicationState.PAUSED) {
-            this.applicationState = ApplicationState.RUNNING;
-            console.log("Set state to RUNNING");
-        }
 
         await this.checkIfPaused();
         if (this.checkIfStopped()) return false;
@@ -667,7 +662,6 @@ export class LinkedInHandler implements JobSiteHandler {
                 this.jobListings.length
             }`
         );
-        this.currentJobIndex++;
 
         try {
             // Find and click the job title link
@@ -683,13 +677,16 @@ export class LinkedInHandler implements JobSiteHandler {
             if (titleElement) {
                 titleElement.click();
                 await this.sleep(2500); // Wait longer for job details to load
+                this.currentJobIndex++; // Only increment if we successfully process the job
                 return true;
             } else {
                 console.log("No job title link found - skipping job");
+                this.currentJobIndex++; // Still increment if we can't process this job
                 return false;
             }
         } catch (error) {
             console.error("Error selecting job:", error);
+            this.currentJobIndex++; // Still increment if we hit an error
             return false;
         }
     }
