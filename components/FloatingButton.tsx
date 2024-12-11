@@ -36,7 +36,10 @@ const FloatingButton: React.FC = () => {
         const stateInterval = setInterval(() => {
             const currentState = linkedInHandler.applicationState;
             if (currentState !== state) {
-                console.log('State changed:', { from: state, to: currentState });
+                console.log("State changed:", {
+                    from: state,
+                    to: currentState,
+                });
                 setState(currentState);
             }
         }, 200);
@@ -90,9 +93,23 @@ const FloatingButton: React.FC = () => {
     };
 
     const handlePause = () => {
-        console.log('Attempting to pause, current state:', linkedInHandler.applicationState);
+        console.log(
+            "Attempting to pause, current state:",
+            linkedInHandler.applicationState
+        );
         linkedInHandler.pause();
-        console.log('After pause, state:', linkedInHandler.applicationState);
+        setState(ApplicationState.PAUSED); // Immediately update local state
+        console.log("After pause, state:", linkedInHandler.applicationState);
+    };
+
+    const handleUnpause = () => {
+        console.log(
+            "Attempting to unpause, current state:",
+            linkedInHandler.applicationState
+        );
+        linkedInHandler.unpause();
+        setState(ApplicationState.RUNNING); // Immediately update local state
+        console.log("After unpause, state:", linkedInHandler.applicationState);
     };
 
     const buttonConfig = {
@@ -133,9 +150,7 @@ const FloatingButton: React.FC = () => {
                     d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"
                 />
             ),
-            action: () => {
-                linkedInHandler.unpause();
-            },
+            action: handleUnpause,
         },
     };
 

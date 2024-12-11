@@ -50,22 +50,12 @@ export class LinkedInHandler implements JobSiteHandler {
     }
 
     unpause(): void {
-        console.log("Resuming auto-apply process...");
+        console.log("Resuming auto-apply process...", {
+            currentState: this.applicationState,
+            currentStep: this.currentStepIndex,
+        });
         this.applicationState = ApplicationState.RUNNING;
-
-        // // Continue application if we were in the middle of one
-        // if (this.applicationState === ApplicationState.RUNNING) {
-        //     console.log("Continuing application from current step...");
-        //     this.continueApplication();
-        // }
-    }
-
-    async resumeApplication(): Promise<boolean> {
-        if (this.applicationState === ApplicationState.PAUSED) {
-            this.unpause();
-            return this.autoApply();
-        }
-        return false;
+        console.log("State after unpause:", this.applicationState);
     }
 
     isValidJobPage(): boolean {
@@ -217,7 +207,6 @@ export class LinkedInHandler implements JobSiteHandler {
             this.applicationState !== ApplicationState.PAUSED &&
             window.location.href.includes("/jobs/")
         ) {
-            this.currentJobIndex++;
             await this.autoApply();
         }
 
@@ -377,12 +366,22 @@ export class LinkedInHandler implements JobSiteHandler {
     }
 
     async autoApply(): Promise<boolean> {
+        console.log(
+            "Starting autoApply, current state:",
+            this.applicationState
+        );
+
         if (this.applicationState === ApplicationState.PAUSED) {
             console.log("Auto-apply is paused, waiting to resume...");
             await this.waitForUnpause();
+            console.log("Resumed from pause, continuing autoApply");
         }
 
-        this.applicationState = ApplicationState.RUNNING;
+        // Only set to RUNNING if we're not already PAUSED
+        if (this.applicationState !== ApplicationState.PAUSED) {
+            this.applicationState = ApplicationState.RUNNING;
+            console.log("Set state to RUNNING");
+        }
 
         // If we're on the search page, load all job listings
         if (window.location.href.includes("/jobs/")) {
@@ -509,10 +508,21 @@ export class LinkedInHandler implements JobSiteHandler {
     }
 
     private async waitForUnpause(): Promise<void> {
+        let waitCounter = 0;
+        console.log(
+            "Entering waitForUnpause loop, current state:",
+            this.applicationState
+        );
+
         while (this.applicationState === ApplicationState.PAUSED) {
-            console.log("Process paused, waiting to resume...");
+            waitCounter++;
+            if (waitCounter % 5 === 0) {
+                console.log(`Still paused... waited ${waitCounter} seconds`);
+            }
             await this.sleep(1000);
         }
+
+        console.log("Exited pause state after", waitCounter, "seconds");
     }
 
     private isApplicationComplete(): boolean {
