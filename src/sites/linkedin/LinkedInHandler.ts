@@ -1833,4 +1833,13 @@ export class LinkedInHandler implements JobSiteHandler {
 
         console.log("Successfully skipped to last job");
     }
+
+    async stop(): Promise<void> {
+        console.log("Stopping auto-apply...");
+        await this.cancelApplication();
+        this.pause();
+        this.isApplying = false;
+        this.currentStepIndex = 0;
+        this.resetJobIndex();
+    }
 }

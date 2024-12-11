@@ -1,19 +1,22 @@
+import { LinkedInHandler } from "@/src/sites/linkedin/LinkedInHandler";
 import React, { useEffect, useState } from "react";
 
-interface FloatingButtonProps {
-    onToggle: (enabled: boolean) => Promise<boolean>;
-    onSkip?: () => Promise<void>;
-    onStop?: () => Promise<void>;
-}
-
-const FloatingButton: React.FC<FloatingButtonProps> = ({
-    onToggle,
-    onSkip,
-    onStop,
-}) => {
+const FloatingButton: React.FC = () => {
     const [state, setState] = useState<"idle" | "running" | "paused">("idle");
     const [jobsApplied, setJobsApplied] = useState(0);
     const [progress, setProgress] = useState(0);
+
+    const linkedInHandler = new LinkedInHandler();
+
+    const handleSkip = async () => {
+        console.log("Skipping current application...");
+        await linkedInHandler.skipCurrentApplication();
+    };
+
+    const handleStop = async () => {
+        console.log("Stopping auto-apply...");
+        await linkedInHandler.stop();
+    };
 
     useEffect(() => {
         const loadJobsApplied = async () => {
@@ -35,24 +38,6 @@ const FloatingButton: React.FC<FloatingButtonProps> = ({
 
         chrome.storage.sync.onChanged.addListener(listener);
         return () => chrome.storage.sync.onChanged.removeListener(listener);
-    }, []);
-
-    useEffect(() => {
-        const messageListener = (
-            message: any,
-            sender: chrome.runtime.MessageSender
-        ) => {
-            if (message.type === "PAUSE_STATE_CHANGED") {
-                console.log("Received pause state change:", message.isPaused);
-                setState(message.isPaused ? "paused" : "running");
-            } else if (message.type === "RESET_STATE") {
-                console.log("Resetting state to idle");
-                setState("idle");
-            }
-        };
-
-        chrome.runtime.onMessage.addListener(messageListener);
-        return () => chrome.runtime.onMessage.removeListener(messageListener);
     }, []);
 
     useEffect(() => {
@@ -90,54 +75,6 @@ const FloatingButton: React.FC<FloatingButtonProps> = ({
         };
     }, [state]);
 
-    const handleToggle = async () => {
-        try {
-            let success = false;
-
-            switch (state) {
-                case "idle":
-                    success = await onToggle(true);
-                    if (success) {
-                        setState("running");
-                        console.log(
-                            "Started auto-apply, state changed to running"
-                        );
-                    } else {
-                        console.log("Failed to start auto-apply");
-                    }
-                    break;
-                case "running":
-                    success = await onToggle(false);
-                    if (success) {
-                        setState("paused");
-                        console.log(
-                            "Paused auto-apply, state changed to paused"
-                        );
-                    }
-                    break;
-                case "paused":
-                    success = await onToggle(true);
-                    if (success) {
-                        setState("running");
-                        console.log(
-                            "Resumed auto-apply, state changed to running"
-                        );
-                    }
-                    break;
-            }
-        } catch (error) {
-            console.error("Error in handleToggle:", error);
-            setState("idle");
-        }
-    };
-
-    const handleStop = async () => {
-        if (onStop) {
-            setState("idle"); // Set state to idle immediately
-            await onStop(); // Then handle the cleanup
-        }
-    };
-
     const buttonConfig = {
         idle: {
             text: "Start",
@@ -150,6 +87,10 @@ const FloatingButton: React.FC<FloatingButtonProps> = ({
                     d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"
                 />
             ),
+            action: () => {
+                setState("running");
+                linkedInHandler.autoApply();
+            },
         },
         running: {
             text: "Pause",
@@ -162,6 +103,10 @@ const FloatingButton: React.FC<FloatingButtonProps> = ({
                     d="M10 9v6m4-6v6m-7-3a9 9 0 1118 0 9 9 0 01-18 0z"
                 />
             ),
+            action: () => {
+                setState("running");
+                linkedInHandler.pause();
+            },
         },
         paused: {
             text: "Resume",
@@ -174,6 +119,10 @@ const FloatingButton: React.FC<FloatingButtonProps> = ({
                     d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"
                 />
             ),
+            action: () => {
+                setState("paused");
+                linkedInHandler.unpause();
+            },
         },
     };
 
@@ -195,7 +144,7 @@ const FloatingButton: React.FC<FloatingButtonProps> = ({
                         )}
                         <button
                             className={`w-full flex items-center px-4 py-2 rounded-lg text-white font-medium transition-colors ${buttonConfig[state].color}`}
-                            onClick={handleToggle}
+                            onClick={buttonConfig[state].action}
                         >
                             <div className="flex-shrink-0 w-6 h-6">
                                 <svg
@@ -215,59 +164,53 @@ const FloatingButton: React.FC<FloatingButtonProps> = ({
                     </div>
 
                     <div className="flex flex-col space-y-2 w-full">
-                        {onSkip && (
-                            <button
-                                className="flex items-center px-4 py-2 w-full font-medium text-white bg-gray-600 rounded-lg transition-colors hover:bg-gray-700"
-                                onClick={onSkip}
-                            >
-                                <div className="flex-shrink-0 w-6 h-6">
-                                    <svg
-                                        xmlns="http://www.w3.org/2000/svg"
-                                        className="w-full h-full"
-                                        fill="none"
-                                        viewBox="0 0 24 24"
-                                        stroke="currentColor"
-                                    >
-                                        <path
-                                            strokeLinecap="round"
-                                            strokeLinejoin="round"
-                                            strokeWidth={2}
-                                            d="M13 5l7 7-7 7M5 5l7 7-7 7"
-                                        />
-                                    </svg>
-                                </div>
-                                <span className="flex-grow text-center">
-                                    Skip
-                                </span>
-                            </button>
-                        )}
-
-                        {onStop && (
-                            <button
-                                className="flex items-center px-4 py-2 w-full font-medium text-white bg-red-600 rounded-lg transition-colors hover:bg-red-700"
-                                onClick={handleStop}
-                            >
-                                <div className="flex-shrink-0 w-6 h-6">
-                                    <svg
-                                        xmlns="http://www.w3.org/2000/svg"
-                                        className="w-full h-full"
-                                        fill="none"
-                                        viewBox="0 0 24 24"
-                                        stroke="currentColor"
-                                    >
-                                        <path
-                                            strokeLinecap="round"
-                                            strokeLinejoin="round"
-                                            strokeWidth={2}
-                                            d="M6 18L18 6M6 6l12 12"
-                                        />
-                                    </svg>
-                                </div>
-                                <span className="flex-grow text-center">
-                                    Stop
-                                </span>
-                            </button>
-                        )}
+                        (
+                        <button
+                            className="flex items-center px-4 py-2 w-full font-medium text-white bg-gray-600 rounded-lg transition-colors hover:bg-gray-700"
+                            onClick={handleSkip}
+                        >
+                            <div className="flex-shrink-0 w-6 h-6">
+                                <svg
+                                    xmlns="http://www.w3.org/2000/svg"
+                                    className="w-full h-full"
+                                    fill="none"
+                                    viewBox="0 0 24 24"
+                                    stroke="currentColor"
+                                >
+                                    <path
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                        strokeWidth={2}
+                                        d="M13 5l7 7-7 7M5 5l7 7-7 7"
+                                    />
+                                </svg>
+                            </div>
+                            <span className="flex-grow text-center">Skip</span>
+                        </button>
+                        ) (
+                        <button
+                            className="flex items-center px-4 py-2 w-full font-medium text-white bg-red-600 rounded-lg transition-colors hover:bg-red-700"
+                            onClick={handleStop}
+                        >
+                            <div className="flex-shrink-0 w-6 h-6">
+                                <svg
+                                    xmlns="http://www.w3.org/2000/svg"
+                                    className="w-full h-full"
+                                    fill="none"
+                                    viewBox="0 0 24 24"
+                                    stroke="currentColor"
+                                >
+                                    <path
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                        strokeWidth={2}
+                                        d="M6 18L18 6M6 6l12 12"
+                                    />
+                                </svg>
+                            </div>
+                            <span className="flex-grow text-center">Stop</span>
+                        </button>
+                        )
                         <button
                             onClick={() =>
                                 window.open(
