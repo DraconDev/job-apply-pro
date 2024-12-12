@@ -7,7 +7,7 @@ export default defineConfig({
         description: "Automate your LinkedIn job application process",
         version: "1.4.75",
         // This is a development public key, it will generate a consistent ID
-        permissions: ["storage", "windows", "tabs"],
+        permissions: ["storage"],
         host_permissions: ["https://*.linkedin.com/*"],
         action: {
             default_popup: "entrypoints/popup/index.html",
