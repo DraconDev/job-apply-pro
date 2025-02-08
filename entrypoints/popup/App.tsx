@@ -15,7 +15,7 @@ export default function App() {
           </h1>
         </div>
 
-        <div className="px-4 pb-4 space-y-3 bg-white">
+        <div className="px-2 pb-2 space-y-3 bg-white">
           <FormsInfo />
           <FilterButton />
           <AISettings />
