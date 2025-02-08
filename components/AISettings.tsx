@@ -20,7 +20,7 @@ export default function AISettings() {
           strokeLinecap="round"
           strokeLinejoin="round"
           strokeWidth={2}
-          d="M12 2C6.477 2 2 6.477 2 12c0 4.411 2.865 8.136 6.837 9.39.5.092.682-.216.682-.48V20h2.96c.54 0 .98-.44.98-.98v-1.04c0-.54-.44-.98-.98-.98h-1.96V15h1.96c.54 0 .98-.44.98-.98v-1.04c0-.54-.44-.98-.98-.98h-1.96V10h1.96c.54 0 .98-.44.98-.98V7.98c0-.54-.44-.98-.98-.98h-2.96V5.5c0-.264-.182-.572-.682-.48C4.865 3.864 2 7.589 2 12c0 5.523 4.477 10 10 10s10-4.477 10-10S17.523 2 12 2zm-2 17h4v2h-4v-2z"
+          d="M9 2H7v2H5v2H3v8h2v2h2v2h2v2h6v-2h2v-2h2v-2h2V6h-2V4h-2V2h-2v2h-4V2zM7 8h10v6H7V8z"
         />
       </svg>
       <span className="text-base">AI Settings</span>
