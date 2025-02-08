@@ -1,5 +1,5 @@
 import React from 'react'
-import browser from 'wxt/browser'
+import { browser } from 'wxt/browser'
 
 export default function AISettings() {
   const openAISettings = () => {
