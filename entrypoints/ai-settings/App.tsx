@@ -1,10 +1,7 @@
 import { useState, useEffect } from 'react'
 import { storage } from 'wxt/storage'
 
-interface AISettings {
-  apiKey: string;
-  formPrompt: string;
-}
+import { AISettings } from '../../src/common/types'
 
 const defaultSettings: AISettings = {
   apiKey: '',
