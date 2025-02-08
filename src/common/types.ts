@@ -14,6 +14,11 @@ export interface JobSiteHandler {
     applyToJob(): Promise<boolean>;
 }
 
+export interface AISettings {
+    apiKey: string;
+    formPrompt: string;
+}
+
 export interface UserProfile {
     firstName: string;
     lastName: string;
