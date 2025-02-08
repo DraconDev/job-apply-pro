@@ -5,18 +5,14 @@ export default defineConfig({
   manifest: {
     name: "LinkedIn Auto Apply Pro",
     description: "Automate your LinkedIn job application process",
-    version: "1.0.10",
+    version: "1.0.11",
     // This is a development public key, it will generate a consistent ID
     permissions: ["storage", "windows", "tabs"],
     host_permissions: ["https://*.linkedin.com/*"],
-        action: {
-            default_popup: "entrypoints/popup/index.html",
-            default_title: "LinkedIn Auto Apply Pro",
-        },
-        options_ui: {
-            page: "entrypoints/ai-settings/index.html",
-            open_in_tab: true
-        }
+    action: {
+      default_popup: "entrypoints/popup/index.html",
+      default_title: "LinkedIn Auto Apply Pro",
     },
+  },
   modules: ["@wxt-dev/module-react"],
 });
