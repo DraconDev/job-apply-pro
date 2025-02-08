@@ -53,7 +53,7 @@ const HelpButton: React.FC<HelpButtonProps> = ({ className = "" }) => {
                 </svg>
                 <span className="flex-grow text-base text-center">
                     <span>Donate</span>
-                    <span className="inline-block ml-1 align-middle">❤️</span>
+
                 </span>
             </button>
         </div>
