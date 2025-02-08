@@ -1,5 +1,4 @@
 import React from "react";
-import { browser } from "wxt/browser";
 
 export default function AISettings() {
   const openAISettings = () => {
@@ -21,7 +20,7 @@ export default function AISettings() {
           strokeLinecap="round"
           strokeLinejoin="round"
           strokeWidth={2}
-          d="M13 10V3L4 14h7v7l9-11h-7z"
+          d="M9 3.5a2.5 2.5 0 100 5 2.5 2.5 0 000-5zM2 9h4a4 4 0 00-4 4v2h10v-2a4 4 0 00-4-4H2zm15-3a2.5 2.5 0 100 5 2.5 2.5 0 000-5zM12 15h4a4 4 0 00-4 4v2h10v-2a4 4 0 00-4-4h-6z"
         />
       </svg>
       <span className="text-base">AI Settings</span>
