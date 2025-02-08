@@ -17,14 +17,14 @@ export default function App() {
   }, [])
 
   const loadSettings = async () => {
-    const storedSettings = await storage.getItem('aiSettings') as AISettings
+    const storedSettings = await storage.getItem('sync:aiSettings') as AISettings
     if (storedSettings) {
       setSettings(storedSettings)
     }
   }
 
   const saveSettings = async () => {
-    await storage.setItem('aiSettings', settings)
+    await storage.setItem('sync:aiSettings', settings)
     setSaved(true)
     setTimeout(() => setSaved(false), 2000)
   }
