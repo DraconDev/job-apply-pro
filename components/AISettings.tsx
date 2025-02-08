@@ -3,7 +3,7 @@ import { browser } from "wxt/browser";
 
 export default function AISettings() {
   const openAISettings = () => {
-    chrome.tabs.create({ url: chrome.runtime.getURL("ai-settings.html") });
+    chrome.tabs.create({ url: chrome.runtime.getURL("aisettings.html") });
   };
 
   return (
