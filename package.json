@@ -2,7 +2,7 @@
   "name": "job-apply-pro",
   "description": "Job Apply Pro",
   "private": true,
-  "version": "1.0.18",
+  "version": "1.0.19",
   "type": "module",
   "scripts": {
     "dev": "wxt",
