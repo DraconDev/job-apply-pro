@@ -1,10 +1,10 @@
-import React from 'react'
-import { browser } from 'wxt/browser'
+import React from "react";
+import { browser } from "wxt/browser";
 
 export default function AISettings() {
   const openAISettings = () => {
-    browser.runtime.openOptionsPage()
-  }
+    chrome.tabs.create({ url: chrome.runtime.getURL("ai-settings.html") });
+  };
 
   return (
     <button
@@ -13,5 +13,5 @@ export default function AISettings() {
     >
       🤖 AI Settings
     </button>
-  )
+  );
 }
