@@ -5,7 +5,7 @@ export default defineConfig({
   manifest: {
     name: "LinkedIn Auto Apply Pro",
     description: "Automate your LinkedIn job application process",
-    version: "1.1.9",
+    version: "1.1.10",
     // This is a development public key, it will generate a consistent ID
     permissions: ["storage", "windows", "tabs"],
     host_permissions: ["https://*.linkedin.com/*"],
