@@ -1,3 +1,4 @@
+import { generateFormResponse } from "@/src/ai/gemini";
 import { SavedFormInputs } from "../types";
 import { findFormDivs, getQuestionLabel, isElementVisible } from "./domUtils";
 import { ApplicationAnswer } from "@/types";
@@ -152,21 +153,21 @@ export async function saveFormInput() {
  * Fill form inputs with saved values
  */
 export async function fillFormInput(): Promise<boolean> {
-    try {
-        // Specifically target LinkedIn's Easy Apply modal
-        const easyApplyModal = document.querySelector('.easy-apply-modal');
-        if (!easyApplyModal) return false;
+  try {
+    // Specifically target LinkedIn's Easy Apply modal
+    const easyApplyModal = document.querySelector(".easy-apply-modal");
+    if (!easyApplyModal) return false;
 
-        const result = findFormDivs();
-        if (!result) return false;
-        const { formDivs } = result;
+    const result = findFormDivs();
+    if (!result) return false;
+    const { formDivs } = result;
 
-        const settings = await chrome.storage.sync.get(["aiSettings"]);
-        const aiEnabled = settings.aiSettings?.enabled;
-        const apiKey = settings.aiSettings?.apiKey;
+    const settings = await chrome.storage.sync.get(["aiSettings"]);
+    const aiEnabled = settings.aiSettings?.enabled;
+    const apiKey = settings.aiSettings?.apiKey;
 
-        let success = false;
-        for (const div of formDivs) {
+    let success = false;
+    for (const div of formDivs) {
       const element = div.querySelector("input, select, textarea") as
         | HTMLInputElement
         | HTMLTextAreaElement
@@ -192,42 +193,46 @@ export async function fillFormInput(): Promise<boolean> {
         )
       );
 
-            if (!matchingInput && aiEnabled && apiKey) {
-                // Only use AI if auto-fill failed and AI is enabled
-                try {
-                    const label = getQuestionLabel(div) || element.getAttribute("aria-label") || element.placeholder;
-                    if (!label) continue;
+      if (!matchingInput && aiEnabled && apiKey) {
+        // Only use AI if auto-fill failed and AI is enabled
+        try {
+          const label =
+            getQuestionLabel(div) ||
+            element.getAttribute("aria-label") ||
+            element.placeholder;
+          if (!label) continue;
 
-                    const aiResponse = await generateFormResponse(
-                        div,
-                        `This is a LinkedIn Easy Apply job application field. Field label: ${label}`,
-                        apiKey
-                    );
+          const aiResponse = await generateFormResponse(
+            div,
+            `This is a LinkedIn Easy Apply job application field. Field label: ${label}`,
+            apiKey
+          );
 
-                    if (aiResponse) {
-                        if (element instanceof HTMLSelectElement) {
-                            const bestMatch = Array.from(element.options)
-                                .find(opt => opt.text.toLowerCase().includes(aiResponse.toLowerCase()));
-                            if (bestMatch) {
-                                element.value = bestMatch.value;
-                                success = true;
-                            }
-                        } else {
-                            element.value = aiResponse;
-                            success = true;
-                        }
-                        
-                        if (success) {
-                            element.dispatchEvent(new Event("input", { bubbles: true }));
-                            element.dispatchEvent(new Event("change", { bubbles: true }));
-                            await saveAnswer(label, aiResponse); // Save AI-generated answer
-                        }
-                    }
-                } catch (error) {
-                    console.error("AI form fill error:", error);
-                }
-                continue;
+          if (aiResponse) {
+            if (element instanceof HTMLSelectElement) {
+              const bestMatch = Array.from(element.options).find((opt) =>
+                opt.text.toLowerCase().includes(aiResponse.toLowerCase())
+              );
+              if (bestMatch) {
+                element.value = bestMatch.value;
+                success = true;
+              }
+            } else {
+              element.value = aiResponse;
+              success = true;
             }
+
+            if (success) {
+              element.dispatchEvent(new Event("input", { bubbles: true }));
+              element.dispatchEvent(new Event("change", { bubbles: true }));
+              await saveAnswer(label, aiResponse); // Save AI-generated answer
+            }
+          }
+        } catch (error) {
+          console.error("AI form fill error:", error);
+        }
+        continue;
+      }
 
       if (element instanceof HTMLSelectElement) {
         const isValidOption = Array.from(element.options).some(
