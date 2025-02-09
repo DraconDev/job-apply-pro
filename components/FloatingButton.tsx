@@ -1,14 +1,18 @@
+import { ApplicationState } from "@/src/sites/linkedin/types";
 import {
-    ApplicationState,
-    LinkedInHandler,
-} from "@/src/sites/linkedin/LinkedInHandler";
-import React, { useEffect, useMemo, useState } from "react";
+    getApplicationState,
+    pause,
+    unpause,
+    stop
+} from "@/src/sites/linkedin/state/applicationState";
+import { autoApply } from "@/src/sites/linkedin/jobs/autoApply";
+import { cancelApplication } from "@/src/sites/linkedin/navigation/modals";
+import React, { useEffect, useState } from "react";
 
 const FloatingButton: React.FC = () => {
     const [state, setState] = useState<ApplicationState>(ApplicationState.IDLE);
     const [jobsApplied, setJobsApplied] = useState(0);
     const [progress, setProgress] = useState(0);
-    const linkedInHandler = useMemo(() => new LinkedInHandler(), []);
 
     useEffect(() => {
         const loadJobsApplied = async () => {
@@ -34,7 +38,7 @@ const FloatingButton: React.FC = () => {
 
     useEffect(() => {
         const stateInterval = setInterval(() => {
-            const currentState = linkedInHandler.applicationState;
+            const currentState = getApplicationState();
             if (currentState !== state) {
                 console.log("State changed:", {
                     from: state,
@@ -45,7 +49,7 @@ const FloatingButton: React.FC = () => {
         }, 200);
 
         return () => clearInterval(stateInterval);
-    }, [linkedInHandler, state]);
+    }, [state]);
 
     useEffect(() => {
         let animationFrame: number;
@@ -84,33 +88,27 @@ const FloatingButton: React.FC = () => {
 
     const handleSkip = async () => {
         console.log("Skipping current application...");
-        await linkedInHandler.skipCurrentApplication();
+        await cancelApplication();
     };
 
     const handleStop = async () => {
         console.log("Stopping auto-apply...");
-        await linkedInHandler.stop();
+        await stop(cancelApplication);
         setState(ApplicationState.IDLE); // Immediately update UI state
     };
 
     const handlePause = () => {
-        console.log(
-            "Attempting to pause, current state:",
-            linkedInHandler.applicationState
-        );
-        linkedInHandler.pause();
+        console.log("Attempting to pause, current state:", getApplicationState());
+        pause();
         setState(ApplicationState.PAUSED); // Immediately update local state
-        console.log("After pause, state:", linkedInHandler.applicationState);
+        console.log("After pause, state:", getApplicationState());
     };
 
     const handleUnpause = () => {
-        console.log(
-            "Attempting to unpause, current state:",
-            linkedInHandler.applicationState
-        );
-        linkedInHandler.unpause();
+        console.log("Attempting to unpause, current state:", getApplicationState());
+        unpause();
         setState(ApplicationState.RUNNING); // Immediately update local state
-        console.log("After unpause, state:", linkedInHandler.applicationState);
+        console.log("After unpause, state:", getApplicationState());
     };
 
     const buttonConfig = {
@@ -127,6 +125,8 @@ const FloatingButton: React.FC = () => {
                     />
                     <path
                         strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
                         strokeLinejoin="round"
                         strokeWidth={2}
                         d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"
@@ -181,13 +181,13 @@ const FloatingButton: React.FC = () => {
 
     return (
         <div className="fixed top-1/2 right-4 -translate-y-1/2 w-64 rounded-lg shadow-xl border-2 border-gray-300 p-4 z-[2147483647]">
-            <div className="flex relative flex-col space-y-4">
+            <div className="relative flex flex-col space-y-4">
                 <div className="flex flex-col p-4 space-y-2 bg-white rounded-lg">
                     <div className="relative">
                         {state === ApplicationState.RUNNING && (
-                            <div className="overflow-hidden mb-2 w-full h-1 bg-gray-200 rounded-b-lg">
+                            <div className="w-full h-1 mb-2 overflow-hidden bg-gray-200 rounded-b-lg">
                                 <div
-                                    className="h-full bg-blue-600 transition-all duration-100 ease-linear"
+                                    className="h-full transition-all duration-100 ease-linear bg-blue-600"
                                     style={{
                                         width: "30%",
                                         marginLeft: `${progress}%`,
@@ -216,9 +216,9 @@ const FloatingButton: React.FC = () => {
                         </button>
                     </div>
 
-                    <div className="flex flex-col space-y-2 w-full">
+                    <div className="flex flex-col w-full space-y-2">
                         <button
-                            className="flex items-center px-4 py-2 w-full font-medium text-white bg-gray-600 rounded-lg transition-colors hover:bg-gray-700"
+                            className="flex items-center w-full px-4 py-2 font-medium text-white transition-colors bg-gray-600 rounded-lg hover:bg-gray-700"
                             onClick={handleSkip}
                         >
                             <div className="flex-shrink-0 w-6 h-6">
@@ -241,7 +241,7 @@ const FloatingButton: React.FC = () => {
                         </button>
 
                         <button
-                            className="flex items-center px-4 py-2 w-full font-medium text-white bg-red-600 rounded-lg transition-colors hover:bg-red-700"
+                            className="flex items-center w-full px-4 py-2 font-medium text-white transition-colors bg-red-600 rounded-lg hover:bg-red-700"
                             onClick={handleStop}
                         >
                             <div className="flex-shrink-0 w-6 h-6">
@@ -270,7 +270,7 @@ const FloatingButton: React.FC = () => {
                                     "_blank"
                                 )
                             }
-                            className="flex items-center px-4 py-2 w-full font-medium text-white bg-purple-600 rounded-lg transition-colors hover:bg-purple-700"
+                            className="flex items-center w-full px-4 py-2 font-medium text-white transition-colors bg-purple-600 rounded-lg hover:bg-purple-700"
                         >
                             <div className="flex-shrink-0 w-6 h-6">
                                 <svg
@@ -294,7 +294,7 @@ const FloatingButton: React.FC = () => {
                         </button>
                     </div>
 
-                    <div className="mt-2 w-full text-sm text-center text-gray-600">
+                    <div className="w-full mt-2 text-sm text-center text-gray-600">
                         Jobs Applied: {jobsApplied}
                     </div>
                 </div>
