@@ -1,7 +1,7 @@
-import { generateFormResponse } from "@/src/ai/gemini";
 import { SavedFormInputs } from "../types";
 import { findFormDivs, getQuestionLabel, isElementVisible } from "./domUtils";
 import { ApplicationAnswer } from "@/types";
+import { generateFormResponse } from "@/ai/gemini";
 
 /**
  * Save the current state of form inputs to storage
