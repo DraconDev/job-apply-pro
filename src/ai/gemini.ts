@@ -45,29 +45,23 @@ export async function generateGeminiMessage(
       !result.response.candidates ||
       !result.response.candidates[0] ||
       !result.response.candidates[0].content ||
-    if (!cleanMessage.match(/^[a-z]+(\([a-z-]+\))?: .+/)) {
-      const changedFiles = [
-        ...status.modified,
-        ...status.not_added,
-        ...status.deleted,
-      ];
-      const timestamp = new Date().toISOString().split("T")[1].slice(0, 5);
-      return `feat: update ${changedFiles.length} files (${changedFiles
-        .slice(0, 3)
-        .join(", ")}) at ${timestamp}`;
+      !result.response.candidates[0].content.parts ||
+      !result.response.candidates[0].content.parts[0] ||
+      !result.response.candidates[0].content.parts[0].text
+    ) {
+      throw new Error("No candidates in response from Gemini API");
     }
 
-    return cleanMessage;
+    const response = result.response.candidates[0].content.parts[0].text;
+    return response.trim();
+
   } catch (error: any) {
-    console.error("Error generating commit message:", {
+    console.error("Error analyzing HTML element:", {
       timestamp: new Date().toISOString(),
       message: error.message,
       stack: error.stack,
       errorType: error.constructor.name,
     });
-    vscode.window.showErrorMessage(
-      `Failed to generate commit message: ${error.message}`
-    );
     return null;
   }
 }
