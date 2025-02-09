@@ -155,7 +155,7 @@ export async function saveFormInput() {
 export async function fillFormInput(): Promise<boolean> {
   try {
     // Specifically target LinkedIn's Easy Apply modal
-    const easyApplyModal = document.querySelector(".easy-apply-modal");
+    const easyApplyModal = document.querySelector('.easy-apply-modal');
     if (!easyApplyModal) return false;
 
     const result = findFormDivs();
@@ -193,11 +193,11 @@ export async function fillFormInput(): Promise<boolean> {
         )
       );
 
+      // Try AI fill if no matching input and AI is enabled
       if (!matchingInput && aiEnabled && apiKey) {
-        // Only use AI if auto-fill failed and AI is enabled
         try {
-          const label =
-            getQuestionLabel(div) ||
+          const label = getQuestionLabel(div) || 
+            element.getAttribute("aria-label") || 
             element.getAttribute("aria-label") ||
             element.placeholder;
           if (!label) continue;
