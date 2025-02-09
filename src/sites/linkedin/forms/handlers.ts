@@ -1,7 +1,7 @@
 import { SavedFormInputs } from "../types";
 import { findFormDivs, getQuestionLabel, isElementVisible } from "./domUtils";
 import { ApplicationAnswer } from "@/types";
-import { generateFormResponse } from "@/ai/gemini";
+import { generateFormResponse } from "../../../ai/gemini";
 
 /**
  * Save the current state of form inputs to storage
@@ -203,7 +203,7 @@ export async function fillFormInput(): Promise<boolean> {
           if (!label) continue;
 
           const aiResponse = await generateFormResponse(
-            div,
+            div as HTMLElement,
             `This is a LinkedIn Easy Apply job application field. Field label: ${label}`,
             apiKey
           );
