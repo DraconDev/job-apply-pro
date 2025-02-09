@@ -10,9 +10,16 @@ export function initializeModel(apiKey: string) {
   });
 }
 
+interface FormFieldInfo {
+  label: string;
+  type: string;
+  options?: { text: string; value: string }[];
+  placeholder?: string;
+  ariaLabel?: string;
+}
+
 export async function generateFormResponse(
-  element: HTMLElement,
-  context: string,
+  fieldInfo: FormFieldInfo,
   apiKey: string
 ): Promise<string | null> {
   try {
@@ -21,22 +28,15 @@ export async function generateFormResponse(
     }
 
     const prompt = `
-      You are an AI assistant helping to fill out a job application form. Given the following form field and context, generate an appropriate response:
+      You are an AI assistant helping to fill out a LinkedIn job application form. Given the following form field, generate an appropriate response:
 
-      Form Field HTML:
-      ${element.outerHTML}
+      Field Label: ${fieldInfo.label}
+      Field Type: ${fieldInfo.type}
+      ${fieldInfo.options ? `Available Options: ${fieldInfo.options.map(o => o.text).join(', ')}` : ''}
+      ${fieldInfo.placeholder ? `Placeholder: ${fieldInfo.placeholder}` : ''}
+      ${fieldInfo.ariaLabel ? `Aria Label: ${fieldInfo.ariaLabel}` : ''}
 
-      Field Context:
-      ${context}
-
-      Consider:
-      1. The type of input (text, select, textarea)
-      2. Any labels or placeholder text
-      3. Associated aria labels
-      4. Required format or constraints
-      5. Typical professional standards
-
-      Generate a concise, professional response suitable for a job application.
+      Provide a concise, professional response suitable for a LinkedIn job application. If options are provided, choose the most appropriate one.
     `;
 
     const result = await model.generateContent(prompt);
