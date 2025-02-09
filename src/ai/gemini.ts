@@ -1,5 +1,4 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
-import { error } from "console";
 
 export let genAI: GoogleGenerativeAI;
 export let model: any;
@@ -12,14 +11,28 @@ export function initializeModel(apiKey: string) {
 }
 
 export async function generateGeminiMessage(
-  diff: string
+  element: HTMLElement,
+  apiKey: string
 ): Promise<string | null> {
   try {
-
-
     if (!model) {
-      const apiKey = getApiKey();
+      initializeModel(apiKey);
     }
+
+    const prompt = `
+      Analyze this HTML element and generate a description of what it represents in terms of a job application field:
+      
+      ${element.outerHTML}
+      
+      Consider the element's:
+      1. Type (input, select, textarea)
+      2. Label or placeholder text
+      3. Any associated aria labels
+      4. Parent element context
+      5. Surrounding text nodes
+      
+      Return a clear, concise description of what information this field is asking for.
+    `;
 
     const result = await model.generateContent(prompt);
 
@@ -32,19 +45,6 @@ export async function generateGeminiMessage(
       !result.response.candidates ||
       !result.response.candidates[0] ||
       !result.response.candidates[0].content ||
-      !result.response.candidates[0].content.parts ||
-      !result.response.candidates[0].content.parts[0] ||
-      !result.response.candidates[0].content.parts[0].text
-    ) {
-      throw new Error("No candidates in response from Gemini API");
-    }
-
-    const response = result.response.candidates[0].content.parts[0].text;
-
-    // Clean up the message - remove quotes and newlines
-    const cleanMessage = response.replace(/["'\n\r]+/g, " ").trim();
-
-    // Ensure it follows conventional commit format
     if (!cleanMessage.match(/^[a-z]+(\([a-z-]+\))?: .+/)) {
       const changedFiles = [
         ...status.modified,
