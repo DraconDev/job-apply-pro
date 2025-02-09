@@ -234,8 +234,6 @@ const FloatingButton: React.FC = () => {
                                         d="M13 5l7 7-7 7M5 5l7 7-7 7"
                                     />
                                 </svg>
-                                    />
-                                </svg>
                             </div>
                             <span className="flex-grow text-center">Skip</span>
                         </button>
