@@ -7,7 +7,7 @@ import "./App.css";
 
 export default function App() {
   return (
-    <div className="min-w-[330px] max-w-[660px] min-h-[400px] bg-slate-900">
+    <div className="min-w-[330px] max-w-[660px] min-h-[600px] bg-slate-900">
       <div>
         <div className="py-2 mb-2 border-slate-700/50 bg-slate-800/50 backdrop-blur-sm">
           <h1 className="text-2xl font-extrabold tracking-tight text-center group">
