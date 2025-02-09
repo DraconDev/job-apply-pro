@@ -17,6 +17,7 @@ export interface JobSiteHandler {
 export interface AISettings {
     apiKey: string;
     formPrompt: string;
+    enabled: boolean;
 }
 
 export interface UserProfile {
