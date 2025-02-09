@@ -1,6 +1,7 @@
 import { createRoot } from "react-dom/client";
 import { defineContentScript } from "wxt/sandbox";
 import FloatingButton from "../components/FloatingButton";
+import LinkedInHandler from "@/src/sites/linkedin";
 
 import "./content/style.css";
 
@@ -23,8 +24,11 @@ export default defineContentScript({
         document.body.appendChild(container);
         console.log("Created new container:", container.id);
 
-        // Initialize handlers
-        const linkedInHandler = new LinkedInHandler();
+        // Initialize LinkedIn handler
+        if (!LinkedInHandler.isValidJobPage()) {
+            console.log("Not on a valid LinkedIn job page");
+            return;
+        }
 
         // Create React root and render floating button
         const root = createRoot(container);
