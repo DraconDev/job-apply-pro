@@ -10,8 +10,8 @@ export default function App() {
     <div className="min-w-[300px] max-w-[600px] bg-slate-900">
       <div>
         <div className="py-4 mb-2 border-b shadow-lg border-slate-700/50 bg-slate-800/50 backdrop-blur-sm">
-          <h1 className="text-2xl font-extrabold tracking-tight text-center">
-            <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-indigo-400">
+          <h1 className="text-2xl font-extrabold tracking-tight text-center group">
+            <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 via-blue-500 to-indigo-400 animate-gradient">
               Job Apply Pro
             </span>
           </h1>
