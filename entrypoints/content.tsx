@@ -1,7 +1,7 @@
 import { createRoot } from "react-dom/client";
 import { defineContentScript } from "wxt/sandbox";
 import FloatingButton from "../components/FloatingButton";
-import { LinkedInHandler } from "../src/sites/linkedin/LinkedInHandler";
+
 import "./content/style.css";
 
 export default defineContentScript({
