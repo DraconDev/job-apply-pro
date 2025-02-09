@@ -7,15 +7,17 @@ import "./App.css";
 
 export default function App() {
   return (
-    <div className="min-w-[300px] max-w-[600px] bg-gray-50">
+    <div className="min-w-[300px] max-w-[600px] bg-slate-900">
       <div>
-        <div className="py-2 mb-2 bg-white shadow-sm">
-          <h1 className="text-xl font-bold text-center text-gray-800 md:text-2xl">
-            Job Apply Pro
+        <div className="py-4 mb-2 border-b shadow-lg border-slate-700/50 bg-slate-800/50 backdrop-blur-sm">
+          <h1 className="text-2xl font-extrabold tracking-tight text-center">
+            <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-indigo-400">
+              Job Apply Pro
+            </span>
           </h1>
         </div>
 
-        <div className="px-2 pb-2 space-y-3 bg-white">
+        <div className="px-2 pb-2 space-y-3 bg-slate-800/50 backdrop-blur-sm">
           <FormsInfo />
           <FilterButton />
           <AISettings />
