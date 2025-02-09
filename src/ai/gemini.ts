@@ -15,24 +15,7 @@ export async function generateGeminiMessage(
   diff: string
 ): Promise<string | null> {
   try {
-    // Validate input
-    if (typeof diff !== "string") {
-      throw new TypeError("diff must be a string");
-    }
 
-    // Check git status
-    const status = await git.status();
-    if (!status || typeof status !== "object") {
-      throw new Error("Invalid git status response");
-    }
-
-    if (
-      !status.modified.length &&
-      !status.not_added.length &&
-      !status.deleted.length
-    ) {
-      throw new Error("No changes to commit");
-    }
 
     if (!model) {
       const apiKey = getApiKey();
