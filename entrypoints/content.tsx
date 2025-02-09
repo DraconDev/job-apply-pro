@@ -2,6 +2,8 @@ import { createRoot } from "react-dom/client";
 import { defineContentScript } from "wxt/sandbox";
 import FloatingButton from "../components/FloatingButton";
 import LinkedInHandler from "@/src/sites/linkedin";
+import { pause, unpause } from "@/src/sites/linkedin/state/applicationState";
+import { autoApply } from "@/src/sites/linkedin/jobs/autoApply";
 
 import "./content/style.css";
 
@@ -32,7 +34,37 @@ export default defineContentScript({
 
         // Create React root and render floating button
         const root = createRoot(container);
-
         root.render(<FloatingButton />);
+
+        // Listen for messages from the popup
+        chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+            console.log("Received message:", message);
+
+            switch (message.type) {
+                case 'START_AUTO_APPLY':
+                    console.log("Starting auto apply process...");
+                    autoApply().catch(console.error);
+                    break;
+
+                case 'TOGGLE_PAUSE':
+                    if (message.isPaused) {
+                        console.log("Pausing auto apply process...");
+                        pause();
+                    } else {
+                        console.log("Resuming auto apply process...");
+                        unpause();
+                    }
+                    break;
+
+                case 'GET_JOB_DETAILS':
+                    console.log("Getting job details...");
+                    const details = LinkedInHandler.getJobDetails();
+                    sendResponse(details);
+                    break;
+            }
+
+            // Return true to indicate we'll send a response asynchronously
+            return true;
+        });
     },
 });
