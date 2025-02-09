@@ -10,8 +10,9 @@ export function initializeModel(apiKey: string) {
   });
 }
 
-export async function generateGeminiMessage(
+export async function generateFormResponse(
   element: HTMLElement,
+  context: string,
   apiKey: string
 ): Promise<string | null> {
   try {
@@ -20,18 +21,22 @@ export async function generateGeminiMessage(
     }
 
     const prompt = `
-      Analyze this HTML element and generate a description of what it represents in terms of a job application field:
-      
+      You are an AI assistant helping to fill out a job application form. Given the following form field and context, generate an appropriate response:
+
+      Form Field HTML:
       ${element.outerHTML}
-      
-      Consider the element's:
-      1. Type (input, select, textarea)
-      2. Label or placeholder text
-      3. Any associated aria labels
-      4. Parent element context
-      5. Surrounding text nodes
-      
-      Return a clear, concise description of what information this field is asking for.
+
+      Field Context:
+      ${context}
+
+      Consider:
+      1. The type of input (text, select, textarea)
+      2. Any labels or placeholder text
+      3. Associated aria labels
+      4. Required format or constraints
+      5. Typical professional standards
+
+      Generate a concise, professional response suitable for a job application.
     `;
 
     const result = await model.generateContent(prompt);
