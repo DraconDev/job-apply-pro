@@ -198,8 +198,8 @@ export async function fillFormInput(): Promise<boolean> {
         try {
           const label = getQuestionLabel(div) || 
             element.getAttribute("aria-label") || 
-            element.getAttribute("aria-label") ||
-            element.placeholder;
+            ((element instanceof HTMLInputElement || element instanceof HTMLTextAreaElement) ? element.placeholder : null);
+
           if (!label) continue;
 
           const aiResponse = await generateFormResponse(
@@ -210,22 +210,20 @@ export async function fillFormInput(): Promise<boolean> {
 
           if (aiResponse) {
             if (element instanceof HTMLSelectElement) {
-              const bestMatch = Array.from(element.options).find((opt) =>
-                opt.text.toLowerCase().includes(aiResponse.toLowerCase())
-              );
+              const bestMatch = Array.from(element.options)
+                .find(opt => opt.text.toLowerCase().includes(aiResponse.toLowerCase()));
               if (bestMatch) {
                 element.value = bestMatch.value;
+                element.dispatchEvent(new Event("change", { bubbles: true }));
+                await saveAnswer(label, bestMatch.text);
                 success = true;
               }
             } else {
               element.value = aiResponse;
-              success = true;
-            }
-
-            if (success) {
               element.dispatchEvent(new Event("input", { bubbles: true }));
               element.dispatchEvent(new Event("change", { bubbles: true }));
-              await saveAnswer(label, aiResponse); // Save AI-generated answer
+              await saveAnswer(label, aiResponse);
+              success = true;
             }
           }
         } catch (error) {
@@ -234,32 +232,39 @@ export async function fillFormInput(): Promise<boolean> {
         continue;
       }
 
-      if (element instanceof HTMLSelectElement) {
-        const isValidOption = Array.from(element.options).some(
-          (option) => option.value === matchingInput.value
-        );
-
-        if (isValidOption) {
-          element.value = matchingInput.value;
-        } else if (matchingInput.options) {
-          const savedOption = matchingInput.options.find((opt) =>
-            Array.from(element.options).some(
-              (currentOpt) =>
-                currentOpt.textContent?.trim().toLowerCase() ===
-                opt.text.toLowerCase()
-            )
+      // Use saved input if available
+      if (matchingInput) {
+        if (element instanceof HTMLSelectElement) {
+          const isValidOption = Array.from(element.options).some(
+            (option) => option.value === matchingInput.value
           );
-          if (savedOption) {
-            element.value = savedOption.value;
-          }
-        }
-      } else {
-        element.value = matchingInput.value;
-      }
 
-      element.dispatchEvent(new Event("input", { bubbles: true }));
-      element.dispatchEvent(new Event("change", { bubbles: true }));
-      success = true;
+          if (isValidOption) {
+            element.value = matchingInput.value;
+            success = true;
+          } else if (matchingInput.options) {
+            const savedOption = matchingInput.options.find((opt) =>
+              Array.from(element.options).some(
+                (currentOpt) =>
+                  currentOpt.textContent?.trim().toLowerCase() ===
+                  opt.text.toLowerCase()
+              )
+            );
+            if (savedOption) {
+              element.value = savedOption.value;
+              success = true;
+            }
+          }
+        } else {
+          element.value = matchingInput.value;
+          success = true;
+        }
+
+        if (success) {
+          element.dispatchEvent(new Event("input", { bubbles: true }));
+          element.dispatchEvent(new Event("change", { bubbles: true }));
+        }
+      }
     }
     return success;
   } catch (error) {
@@ -306,7 +311,6 @@ export async function fillOutField(
   field.dispatchEvent(new Event("input", { bubbles: true }));
   field.dispatchEvent(new Event("change", { bubbles: true }));
 
-  const label =
-    field.getAttribute("aria-label") || field.placeholder || "Unknown field";
+  const label = field.getAttribute("aria-label") || field.placeholder || "Unknown field";
   await saveAnswer(label, value);
 }
