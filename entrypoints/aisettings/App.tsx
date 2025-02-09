@@ -5,7 +5,8 @@ import { AISettings } from '../../src/common/types'
 
 const defaultSettings: AISettings = {
   apiKey: '',
-  formPrompt: 'Fill this form as a senior software engineer with 8+ years of experience in full-stack development, focusing on React, Node.js, and cloud technologies.'
+  formPrompt: 'Fill this form as a senior software engineer with 8+ years of experience in full-stack development, focusing on React, Node.js, and cloud technologies.',
+  enabled: false
 }
 
 export default function App() {
@@ -35,6 +36,24 @@ export default function App() {
         <h1 className="mb-6 text-2xl font-bold">AI Settings</h1>
         
         <div className="space-y-6">
+          <div className="flex items-center justify-between">
+            <label className="text-sm font-medium text-gray-700">
+              Enable AI Assistant
+            </label>
+            <button
+              onClick={() => setSettings({...settings, enabled: !settings.enabled})}
+              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                settings.enabled ? 'bg-blue-500' : 'bg-gray-300'
+              }`}
+            >
+              <span
+                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                  settings.enabled ? 'translate-x-6' : 'translate-x-1'
+                }`}
+              />
+            </button>
+          </div>
+
           <div>
             <label className="block mb-2 text-sm font-medium text-gray-700">
               Gemini API Key
