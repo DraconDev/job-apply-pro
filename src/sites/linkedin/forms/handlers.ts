@@ -202,11 +202,23 @@ export async function fillFormInput(): Promise<boolean> {
 
           if (!label) continue;
 
-          const aiResponse = await generateFormResponse(
-            div as HTMLElement,
-            `This is a LinkedIn Easy Apply job application field. Field label: ${label}`,
-            apiKey
-          );
+          const fieldInfo = {
+            label,
+            type: element instanceof HTMLSelectElement ? 'select' : 
+                  element instanceof HTMLTextAreaElement ? 'textarea' : 
+                  element.type,
+            ...(element instanceof HTMLSelectElement && {
+              options: Array.from(element.options).map(opt => ({
+                text: opt.text,
+                value: opt.value
+              }))
+            }),
+            placeholder: (element instanceof HTMLInputElement || element instanceof HTMLTextAreaElement) ? 
+              element.placeholder : undefined,
+            ariaLabel: element.getAttribute("aria-label") || undefined
+          };
+
+          const aiResponse = await generateFormResponse(fieldInfo, apiKey);
 
           if (aiResponse) {
             if (element instanceof HTMLSelectElement) {
