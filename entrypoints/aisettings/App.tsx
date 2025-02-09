@@ -55,9 +55,19 @@ export default function App() {
           </div>
 
           <div>
-            <label className="block mb-2 text-sm font-medium text-gray-700">
-              Gemini API Key
-            </label>
+            <div className="flex items-center justify-between mb-2">
+              <label className="text-sm font-medium text-gray-700">
+                Gemini API Key
+              </label>
+              <a
+                href="https://aistudio.google.com/apikey"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-sm text-blue-500 hover:text-blue-600"
+              >
+                Get API Key
+              </a>
+            </div>
             <input
               type="password"
               value={settings.apiKey}
