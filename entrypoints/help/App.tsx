@@ -1,22 +1,22 @@
 import React from "react";
-import "./App.css";
+
 
 const App: React.FC = () => {
   return (
-    <div className="min-h-screen bg-gradient-to-b from-slate-50 to-slate-100 p-6">
-      <div className="max-w-4xl mx-auto bg-white rounded-xl shadow-xl p-8 space-y-8">
+    <div className="min-h-screen p-6 bg-gradient-to-b from-slate-50 to-slate-100">
+      <div className="max-w-4xl p-8 mx-auto space-y-8 bg-white shadow-xl rounded-xl">
         <div className="text-center">
-          <h1 className="text-4xl font-bold mb-4 text-slate-800">
+          <h1 className="mb-4 text-4xl font-bold text-slate-800">
             Job Apply Pro
           </h1>
-          <p className="text-xl text-slate-600 mb-8">
+          <p className="mb-8 text-xl text-slate-600">
             Your Automated Job Application Assistant
           </p>
         </div>
 
         <div className="space-y-8 text-gray-700">
           <section className="text-center">
-            <h2 className="text-2xl font-semibold mb-4 text-slate-700">
+            <h2 className="mb-4 text-2xl font-semibold text-slate-700">
               Overview
             </h2>
             <p className="max-w-2xl mx-auto">
@@ -27,11 +27,11 @@ const App: React.FC = () => {
           </section>
 
           <section>
-            <h2 className="text-2xl font-semibold mb-4 text-slate-700 text-center">
+            <h2 className="mb-4 text-2xl font-semibold text-center text-slate-700">
               Getting Started
             </h2>
             <div className="max-w-2xl mx-auto">
-              <ol className="list-decimal pl-5 space-y-3">
+              <ol className="pl-5 space-y-3 list-decimal">
                 <li>
                   Navigate to LinkedIn and search for jobs that match your
                   interests
@@ -48,11 +48,11 @@ const App: React.FC = () => {
           </section>
 
           <section>
-            <h2 className="text-2xl font-semibold mb-4 text-slate-700 text-center">
+            <h2 className="mb-4 text-2xl font-semibold text-center text-slate-700">
               How Auto-Apply Works
             </h2>
             <div className="max-w-2xl mx-auto">
-              <ol className="list-decimal pl-5 space-y-3">
+              <ol className="pl-5 space-y-3 list-decimal">
                 <li>
                   The extension processes each job listing in your search
                   results
@@ -73,33 +73,33 @@ const App: React.FC = () => {
           </section>
 
           <section>
-            <h2 className="text-2xl font-semibold mb-4 text-slate-700 text-center">
+            <h2 className="mb-4 text-2xl font-semibold text-center text-slate-700">
               Controls
             </h2>
             <div className="max-w-2xl mx-auto">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="bg-slate-50 p-4 rounded-lg">
-                  <h3 className="font-semibold mb-2 text-slate-700">
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                <div className="p-4 rounded-lg bg-slate-50">
+                  <h3 className="mb-2 font-semibold text-slate-700">
                     Start/Resume
                   </h3>
                   <p className="text-slate-600">
                     Begin auto-applying or continue from where you left off
                   </p>
                 </div>
-                <div className="bg-slate-50 p-4 rounded-lg">
-                  <h3 className="font-semibold mb-2 text-slate-700">Pause</h3>
+                <div className="p-4 rounded-lg bg-slate-50">
+                  <h3 className="mb-2 font-semibold text-slate-700">Pause</h3>
                   <p className="text-slate-600">
                     Temporarily stop the automation process
                   </p>
                 </div>
-                <div className="bg-slate-50 p-4 rounded-lg">
-                  <h3 className="font-semibold mb-2 text-slate-700">Skip</h3>
+                <div className="p-4 rounded-lg bg-slate-50">
+                  <h3 className="mb-2 font-semibold text-slate-700">Skip</h3>
                   <p className="text-slate-600">
                     Move to the next job in the list
                   </p>
                 </div>
-                <div className="bg-slate-50 p-4 rounded-lg">
-                  <h3 className="font-semibold mb-2 text-slate-700">Stop</h3>
+                <div className="p-4 rounded-lg bg-slate-50">
+                  <h3 className="mb-2 font-semibold text-slate-700">Stop</h3>
                   <p className="text-slate-600">
                     End the automation process completely
                   </p>
@@ -109,11 +109,11 @@ const App: React.FC = () => {
           </section>
 
           <section>
-            <h2 className="text-2xl font-semibold mb-4 text-slate-700 text-center">
+            <h2 className="mb-4 text-2xl font-semibold text-center text-slate-700">
               Tips for Success
             </h2>
             <div className="max-w-2xl mx-auto">
-              <ul className="list-disc pl-5 space-y-3">
+              <ul className="pl-5 space-y-3 list-disc">
                 <li>
                   Review job descriptions carefully before starting auto-apply
                 </li>
@@ -127,7 +127,7 @@ const App: React.FC = () => {
           </section>
         </div>
 
-        <footer className="text-center text-slate-500 mt-12 pt-6 border-t">
+        <footer className="pt-6 mt-12 text-center border-t text-slate-500">
           <p>Need more help? Contact support at support@jobapplypro.com</p>
         </footer>
       </div>
