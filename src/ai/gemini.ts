@@ -19,22 +19,8 @@ export async function generateGeminiMessage(
 
     if (!model) {
       const apiKey = getApiKey();
-      if (!apiKey) {
-        vscode.window.showErrorMessage("Gemini API key not configured");
-        return null;
-      }
-      initializeModel(apiKey);
     }
 
-    // Validate diff content
-    if (!diff || diff.trim() === "") {
-      throw new Error("No changes to commit");
-    }
-
-    // Generate prompt
-    const prompt = `Generate a concise commit message for the following git diff. Use conventional commit format (type(scope): description). Keep it short and descriptive. Here's the diff:\n\n${diff}`;
-
-    // Get API response
     const result = await model.generateContent(prompt);
 
     // Validate API response structure
