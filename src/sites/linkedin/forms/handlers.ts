@@ -135,11 +135,14 @@ export async function saveFormInput() {
 /**
  * Fill form inputs with saved values
  */
-export async function fillFormInput(): Promise<boolean> {
+export async function fillFormInput(useAI: boolean = false): Promise<boolean> {
     try {
         const result = findFormDivs();
         if (!result) return false;
         const { formDivs } = result;
+
+        const settings = await chrome.storage.sync.get(["aiSettings"]);
+        const apiKey = settings.aiSettings?.apiKey;
 
         let success = false;
         for (const div of formDivs) {
@@ -169,7 +172,39 @@ export async function fillFormInput(): Promise<boolean> {
                     )
             );
 
-            if (!matchingInput) continue;
+            if (!matchingInput) {
+                if (useAI && apiKey) {
+                    try {
+                        const label = getQuestionLabel(div) || element.getAttribute("aria-label") || element.placeholder;
+                        if (!label) continue;
+
+                        const aiResponse = await generateFormResponse(
+                            div, 
+                            label,
+                            apiKey
+                        );
+
+                        if (aiResponse) {
+                            if (element instanceof HTMLSelectElement) {
+                                const bestMatch = Array.from(element.options)
+                                    .find(opt => opt.text.toLowerCase().includes(aiResponse.toLowerCase()));
+                                if (bestMatch) {
+                                    element.value = bestMatch.value;
+                                }
+                            } else {
+                                element.value = aiResponse;
+                            }
+                            element.dispatchEvent(new Event("input", { bubbles: true }));
+                            element.dispatchEvent(new Event("change", { bubbles: true }));
+                            success = true;
+                            continue;
+                        }
+                    } catch (error) {
+                        console.error("AI form fill error:", error);
+                    }
+                }
+                continue;
+            }
 
             if (element instanceof HTMLSelectElement) {
                 const isValidOption = Array.from(element.options).some(
