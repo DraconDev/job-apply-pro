@@ -9,7 +9,7 @@ export default function App() {
   return (
     <div className="min-w-[300px] max-w-[600px] bg-gray-50">
       <div>
-        <div className="py-4 mb-4 bg-white shadow-sm">
+        <div className="py-2 mb-2 bg-white shadow-sm">
           <h1 className="text-xl font-bold text-center text-gray-800 md:text-2xl">
             Job Apply Pro
           </h1>
