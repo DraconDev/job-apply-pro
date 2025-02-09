@@ -4,12 +4,6 @@ import { error } from "console";
 export let genAI: GoogleGenerativeAI;
 export let model: any;
 
-export function getApiKey(): string | undefined {
-  return vscode.workspace
-    .getConfiguration("gitAiCommitter")
-    .get<string>("geminiApiKey");
-}
-
 export function initializeModel(apiKey: string) {
   genAI = new GoogleGenerativeAI(apiKey);
   model = genAI.getGenerativeModel({
