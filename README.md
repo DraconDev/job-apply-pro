@@ -6,7 +6,7 @@
 
 A Chrome extension that automates LinkedIn job applications, built with React and TypeScript using WXT.
 
-[Features](#features) • [Installation](#getting-started) • [Usage](#user-guide) • [Support](#support)
+[Features](#features) • [Installation](#getting-started) • [Usage](#user-guide) • [Development](#development) • [Contributing](#contributing) • [License](#license)
 
 ---
 
@@ -21,7 +21,7 @@ A Chrome extension that automates LinkedIn job applications, built with React an
 | Feature | Description |
 |---------|-------------|
 | 🤖 **Auto Apply** | One-click job application automation |
-| 📝 **Smart Forms** | Intelligent form auto-filling |
+| 📝 **Smart Forms** | Intelligent form auto-filling using AI |
 | 🎯 **Job Filtering** | Focus on relevant positions |
 | 📊 **History** | Track your application progress |
 | 💼 **Profile** | Personal information management |
@@ -35,6 +35,9 @@ A Chrome extension that automates LinkedIn job applications, built with React an
 
 #### 🤖 Job Application Automation
 Automatically handles the entire application process with smart form detection and filling.
+
+#### 📝 AI-Powered Smart Forms
+Utilizes AI to intelligently detect and fill application forms on LinkedIn.
 
 #### 🎯 Job Title Filtering
 Customize your job search with powerful filtering options to focus on relevant positions.
@@ -52,7 +55,7 @@ Easily manage your preferences and personal information.
 <div align="center">
 
 1. **Install Extension**
-   - Get it from Chrome Web Store
+   - Get it from Chrome Web Store (Coming Soon!)
    - Click the extension icon
 
 2. **Quick Setup**
