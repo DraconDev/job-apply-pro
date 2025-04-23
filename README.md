@@ -43,7 +43,7 @@ Customize your job search with powerful filtering options to focus on relevant p
 Track your progress with detailed history of all submitted applications.
 
 #### ⚙️ Settings Management
-Easily manage your preferences and personal information with cloud sync.
+Easily manage your preferences and personal information.
 
 </div>
 
